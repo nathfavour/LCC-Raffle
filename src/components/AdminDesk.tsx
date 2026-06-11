@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { collection, doc, deleteDoc, getDocs, onSnapshot, runTransaction } from "firebase/firestore";
+import { collection, doc, deleteDoc, getDocs, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { db, auth } from "../lib/firebase";
 import { ShieldCheck, UserPlus, Copy, Check, Trash2, RefreshCw, CheckCircle, Ticket, Phone, User, AlertTriangle, LogIn, Lock } from "lucide-react";
@@ -320,7 +320,7 @@ export default function AdminDesk() {
               <p className="font-bold uppercase tracking-widest flex items-center gap-1">
                 <AlertTriangle size={10} /> ACCESS PROTOCOL DETAILS:
               </p>
-              <p>Registered Emails whitelist includes event coordinators, ambassadors and test profiles (e.g. nathfavour02@gmail.com).</p>
+              <p>Registered Emails whitelist includes event coordinators, ambassadors and designated test profiles.</p>
             </div>
 
             {!user ? (

@@ -35,7 +35,7 @@ async function startServer() {
 
   // API Route: Return whitelisted admin emails parsed from the ADMINS environment variable
   app.get("/api/admins", (req, res) => {
-    const rawAdmins = process.env.ADMINS || "nathfavour02@gmail.com,admin1@nounlogic.com,admin2@nounlogic.com";
+    const rawAdmins = process.env.ADMINS || "";
     const adminsList = rawAdmins
       .split(",")
       .map((e) => e.trim().toLowerCase())
