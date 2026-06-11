@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect } from "react";
 
 interface Point3D {
   x: number;
@@ -10,7 +10,6 @@ interface Point3D {
   color: string;
   size: number;
   ticketLabel?: string;
-  angleSpeedOffset: number; // custom orbit variance
 }
 
 interface ParticleSphere3DProps {
@@ -28,20 +27,20 @@ export default function ParticleSphere3D({
   const animationRef = useRef<number | null>(null);
   const pointsRef = useRef<Point3D[]>([]);
 
-  // Spin velocity variables
+  // Spin control physics
   const velocityY = useRef(0.005);
   const velocityX = useRef(0.003);
-  const explosionProgress = useRef(0); // 0 (normal) to 1 (max explosion expansion)
+  const explosionProgress = useRef(0);
   const isExploding = useRef(false);
 
   // Initialize unified 3D point cloud
   useEffect(() => {
-    const numPoints = 160;
+    const numPoints = 180;
     const tempPoints: Point3D[] = [];
-    const radius = 110;
+    const radius = 115;
 
     for (let i = 0; i < numPoints; i++) {
-      // Fibonacci Grid distribution on a sphere surface
+      // Fibonacci spiral distribution on a sphere
       const phi = Math.acos(-1 + (2 * i) / numPoints);
       const theta = Math.sqrt(numPoints * Math.PI) * phi;
 
@@ -49,21 +48,20 @@ export default function ParticleSphere3D({
       const y = radius * Math.sin(phi) * Math.sin(theta);
       const z = radius * Math.cos(phi);
 
-      // Aesthetic color allocation: Cowrywise blue, emerald green, and slate highlights
+      // Neon-enriched palette: Cowrywise blue, emerald green, and pure white highlights
       const colorRand = Math.random();
       const color =
-        colorRand < 0.4
+        colorRand < 0.45
           ? "#0066FF" // Cowrywise Core Blue
-          : colorRand < 0.8
-          ? "#10B981" // Cowrywise Success Green
-          : "#E2E8F0"; // Specular Slate White
+          : colorRand < 0.85
+          ? "#10B981" // Rich Success Green
+          : "#FFFFFF"; // Specular Starlight
 
-      const size = Math.random() * 2 + 1.2;
-      const angleSpeedOffset = Math.random() * 0.2 + 0.9;
+      const size = Math.random() * 2.2 + 1.2;
 
-      // Map small numeric floating handles inside
+      // Add a few floating coupon reference tags at random indexes
       const ticketLabel =
-        i % 12 === 0
+        i % 14 === 0
           ? `#${Math.floor(Math.random() * 401)
               .toString()
               .padStart(3, "0")}`
@@ -78,21 +76,19 @@ export default function ParticleSphere3D({
         oz: z,
         color,
         size,
-        ticketLabel,
-        angleSpeedOffset
+        ticketLabel
       });
     }
 
     pointsRef.current = tempPoints;
   }, []);
 
-  // Monitor roll transitions to activate explosions
+  // Monitor roll state to trigger expand/contract shockwaves
   useEffect(() => {
     if (isRolling) {
       isExploding.current = false;
       explosionProgress.current = 0;
     } else if (winnerTicketNumber !== null) {
-      // Trigger instant explosion and snap back elasticity
       isExploding.current = true;
       explosionProgress.current = 1.0;
     }
@@ -105,7 +101,6 @@ export default function ParticleSphere3D({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Handle responsive sizing
     const handleResize = () => {
       const parent = canvas.parentElement;
       if (parent) {
@@ -130,16 +125,31 @@ export default function ParticleSphere3D({
       const centerY = height / 2;
       const perspective = 300;
 
-      // Smooth clear
+      // Draw premium dark metallic radial ambient background inside the sphere
       ctx.clearRect(0, 0, width, height);
+      
+      const radialBg = ctx.createRadialGradient(
+        centerX,
+        centerY,
+        10,
+        centerX,
+        centerY,
+        width / 2
+      );
+      // Beautiful dark navy/carbon ambient space (Cowry Blue shade)
+      radialBg.addColorStop(0, "#080C14"); 
+      radialBg.addColorStop(0.6, "#040508");
+      radialBg.addColorStop(1, "#000000");
+      ctx.fillStyle = radialBg;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, width / 2 - 2, 0, Math.PI * 2);
+      ctx.fill();
 
-      // 1. Calculate dynamic angular velocities
+      // Kinetic physics calculations
       if (isRolling) {
-        // High-velocity kinetic spin
-        velocityY.current = velocityY.current * 0.9 + 0.12 * 0.1;
+        velocityY.current = velocityY.current * 0.9 + 0.14 * 0.1;
         velocityX.current = velocityX.current * 0.9 + 0.08 * 0.1;
       } else {
-        // Cozily decelerate to base orbital rotation
         velocityY.current = velocityY.current * 0.95 + 0.005 * 0.05;
         velocityX.current = velocityX.current * 0.95 + 0.003 * 0.05;
       }
@@ -152,87 +162,153 @@ export default function ParticleSphere3D({
       const sinX = Math.sin(rotationAngleX);
       const cosX = Math.cos(rotationAngleX);
 
-      // Handle explosion decay back to bedrock
+      // Decay explosion recoil
       if (isExploding.current) {
-        explosionProgress.current *= 0.93; // Elastic recovery damping
-        if (explosionProgress.current < 0.001) {
+        explosionProgress.current *= 0.92;
+        if (explosionProgress.current < 0.002) {
           explosionProgress.current = 0;
           isExploding.current = false;
         }
       }
 
-      // Draw background ambient bounds
+      // Draw neat HUD perimeter orbits
       ctx.beginPath();
       ctx.arc(centerX, centerY, width * 0.46, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(35, 33, 31, 0.2)"; // perfect carbon outline shadow
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(35, 33, 31, 0.4)";
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // Deep space orbital guides
+      // Dual Interlocking Neon 3D Coordinate Rings (Perfect brand loop details)
+      // Ring 1: Dynamic Horizontal saving loops (Cowrywise Blue)
       ctx.beginPath();
-      ctx.arc(centerX, centerY, width * 0.35, 0, Math.PI * 2);
-      ctx.strokeStyle = isRolling ? "rgba(0, 102, 255, 0.15)" : "rgba(35, 33, 31, 0.4)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 6]);
+      for (let a = 0; a <= Math.PI * 2; a += 0.06) {
+        const rx = 120 * Math.cos(a);
+        const ry = 12 * Math.sin(a); // slight vertical offset wave
+        const rz = 120 * Math.sin(a);
+
+        // Rotate horizontal ring with key speed
+        const x1 = rx * cosY - rz * sinY;
+        const z1 = rx * sinY + rz * cosY;
+        const y2 = ry * cosX - z1 * sinX;
+        const z2 = ry * sinX + z1 * cosX;
+
+        const proj = perspective / (perspective + z2);
+        const px = centerX + x1 * proj;
+        const py = centerY + y2 * proj;
+
+        if (a === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = isRolling ? "rgba(0, 102, 255, 0.35)" : "rgba(0, 102, 255, 0.2)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Ring 2: Vertical growth loops (Emerald Green)
+      ctx.beginPath();
+      for (let a = 0; a <= Math.PI * 2; a += 0.06) {
+        const rx = 8 * Math.sin(a);
+        const ry = 120 * Math.cos(a);
+        const rz = 120 * Math.sin(a);
+
+        const x1 = rx * cosY - rz * sinY;
+        const z1 = rx * sinY + rz * cosY;
+        const y2 = ry * cosX - z1 * sinX;
+        const z2 = ry * sinX + z1 * cosX;
+
+        const proj = perspective / (perspective + z2);
+        const px = centerX + x1 * proj;
+        const py = centerY + y2 * proj;
+
+        if (a === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = isRolling ? "rgba(16, 185, 129, 0.35)" : "rgba(16, 185, 129, 0.2)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 8]);
       ctx.stroke();
       ctx.setLineDash([]);
 
       const points = pointsRef.current;
       const projected: { px: number; py: number; pz: number; pt: Point3D }[] = [];
 
-      // Translate, rotate, explode, and project coordinates
+      // Calculate translation
       for (const pt of points) {
-        // 3D rotation steps
-        // Rotate around Y Axis
+        // Rotate points
         let x1 = pt.ox * cosY - pt.oz * sinY;
         let z1 = pt.ox * sinY + pt.oz * cosY;
-
-        // Rotate around X Axis
         let y2 = pt.oy * cosX - z1 * sinX;
         let z2 = pt.oy * sinX + z1 * cosX;
 
-        // Apply physical recoil expansion (Explosive burst)
-        const explodeScale = 1.0 + explosionProgress.current * 1.5;
-        const finalX = x1 * explodeScale;
-        const finalY = y2 * explodeScale;
+        // Apply explosion shockwave physics
+        const multiplier = 1.0 + explosionProgress.current * 1.6;
+        const finalX = x1 * multiplier;
+        const finalY = y2 * multiplier;
         const finalZ = z2;
 
-        // Perspective Projection calculation
-        const projectionFactor = perspective / (perspective + finalZ);
-        const px = centerX + finalX * projectionFactor;
-        const py = centerY + finalY * projectionFactor;
+        const proj = perspective / (perspective + finalZ);
+        const px = centerX + finalX * proj;
+        const py = centerY + finalY * proj;
 
         projected.push({ px, py, pz: finalZ, pt });
       }
 
-      // Sort points by Z index (depth buffering) for genuine skeuomorphic 3D rendering
+      // Sort coordinates for genuine 3D clipping depth buffer
       projected.sort((a, b) => b.pz - a.pz);
 
-      // Render projected points with visual styling
+      // Draw constellation filaments for foreground nodes only (high-tech aesthetic)
+      for (let i = 0; i < projected.length; i++) {
+        const p1 = projected[i];
+        if (p1.pz > 15) continue; // skip deep background elements
+
+        let linesDrew = 0;
+        for (let j = i + 1; j < projected.length; j++) {
+          if (linesDrew >= 2) break; // keep lines sparse and elegant
+          const p2 = projected[j];
+          if (p2.pz > 15) continue;
+
+          const dx = p1.px - p2.px;
+          const dy = p1.py - p2.py;
+          const distanceSq = dx * dx + dy * dy;
+
+          // Connect if close
+          if (distanceSq < 1300) { // approx 36 pixels apart
+            ctx.beginPath();
+            ctx.moveTo(p1.px, p1.py);
+            ctx.lineTo(p2.px, p2.py);
+            ctx.strokeStyle = p1.pt.color === p2.pt.color && p1.pt.color !== "#FFFFFF"
+              ? p1.pt.color === "#0066FF" ? "rgba(0, 102, 255, 0.18)" : "rgba(16, 185, 129, 0.18)"
+              : "rgba(0, 102, 255, 0.08)";
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            linesDrew++;
+          }
+        }
+      }
+
+      // Render actual sphere node points
       for (const p of projected) {
         const { px, py, pz, pt } = p;
 
-        // Solid depth opacity scaling
-        const depthOpacity = Math.max(0.12, Math.min(1.0, (300 - pz) / 400));
-        ctx.globalAlpha = depthOpacity;
+        // Depth scale alpha opacity
+        const depthAlpha = Math.max(0.12, Math.min(1.0, (280 - pz) / 380));
+        ctx.globalAlpha = depthAlpha;
 
-        // Highlight center depth
-        const isForeground = pz < -30;
+        const isForeground = pz < -40;
 
         if (pt.ticketLabel && isForeground && !isRolling) {
-          // Floating ticket numbers orbit
-          ctx.fillStyle = "rgba(16, 185, 129, 0.85)";
+          ctx.fillStyle = "rgba(16, 185, 129, 0.9)";
           ctx.font = "bold 8px var(--font-mono, monospace)";
-          ctx.fillText(pt.ticketLabel, px + 5, py - 3);
+          ctx.fillText(pt.ticketLabel, px + 6, py - 3);
 
           ctx.beginPath();
-          ctx.arc(px, py, 3, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(0, 102, 255, 0.85)";
+          ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = "#0066FF";
           ctx.fill();
         } else {
-          // Normal point drawing
           ctx.beginPath();
-          ctx.arc(px, py, pt.size * (isForeground ? 1.4 : 0.8), 0, Math.PI * 2);
+          ctx.arc(px, py, pt.size * (isForeground ? 1.4 : 0.85), 0, Math.PI * 2);
           ctx.fillStyle = pt.color;
           ctx.fill();
         }
@@ -240,42 +316,67 @@ export default function ParticleSphere3D({
 
       ctx.globalAlpha = 1.0;
 
-      // Draw active center status text / ticket pool indicators
-      ctx.fillStyle = "#E2E8F0";
+      // Draw beautiful central futuristic HUD viewfinder target box
+      ctx.strokeStyle = isRolling ? "rgba(0,102,255,0.4)" : "rgba(16,185,129,0.3)";
+      ctx.lineWidth = 1;
+      // Top-Left bracket
+      ctx.beginPath();
+      ctx.moveTo(centerX - 90, centerY - 45);
+      ctx.lineTo(centerX - 90, centerY - 60);
+      ctx.lineTo(centerX - 75, centerY - 60);
+      ctx.stroke();
+      // Bottom-Left bracket
+      ctx.beginPath();
+      ctx.moveTo(centerX - 90, centerY + 45);
+      ctx.lineTo(centerX - 90, centerY + 60);
+      ctx.lineTo(centerX - 75, centerY + 60);
+      ctx.stroke();
+      // Top-Right bracket
+      ctx.beginPath();
+      ctx.moveTo(centerX + 90, centerY - 45);
+      ctx.lineTo(centerX + 90, centerY - 60);
+      ctx.lineTo(centerX + 75, centerY - 60);
+      ctx.stroke();
+      // Bottom-Right bracket
+      ctx.beginPath();
+      ctx.moveTo(centerX + 90, centerY + 45);
+      ctx.lineTo(centerX + 90, centerY + 60);
+      ctx.lineTo(centerX + 75, centerY + 60);
+      ctx.stroke();
+
+      // Display dynamic central values
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
 
       if (isRolling) {
-        // Fast flashing countdown
         ctx.fillStyle = "#0066FF";
-        ctx.font = "900 12px var(--font-display, monospace)";
-        ctx.fillText("ROLLING POOL", centerX, centerY - 28);
+        ctx.font = "800 11px var(--font-display, monospace)";
+        ctx.fillText("LIVE ROLLING STATE", centerX, centerY - 32);
 
+        // Cyberpunk display text
         ctx.fillStyle = "#FFFFFF";
-        ctx.font = "900 64px var(--font-heading, sans-serif)";
-        ctx.fillText(`#${currentDisplayNum.toString().padStart(3, "0")}`, centerX, centerY + 8);
+        ctx.font = "900 68px var(--font-heading, sans-serif)";
+        ctx.fillText(`#${currentDisplayNum.toString().padStart(3, "0")}`, centerX, centerY + 10);
       } else if (winnerTicketNumber !== null) {
-        // Winning static display
         ctx.fillStyle = "#10B981";
-        ctx.font = "bold 10px var(--font-mono, monospace)";
-        ctx.fillText("WINNING ID", centerX, centerY - 28);
+        ctx.font = "800 11px var(--font-display, monospace)";
+        ctx.fillText("DRAW SUCCESS", centerX, centerY - 32);
 
+        // Winning design has glowing dynamic shadow drop
         ctx.fillStyle = "#10B981";
-        ctx.font = "900 72px var(--font-heading, sans-serif)";
-        // Dynamic drop glow aura
+        ctx.font = "900 78px var(--font-heading, sans-serif)";
         ctx.shadowColor = "#10B981";
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = 18;
         ctx.fillText(`#${winnerTicketNumber.toString().padStart(3, "0")}`, centerX, centerY + 10);
-        ctx.shadowBlur = 0; // reset shadow
+        ctx.shadowBlur = 0; // reset
       } else {
-        // Standby display
-        ctx.fillStyle = "#55524E";
-        ctx.font = "bold 10px var(--font-mono, monospace)";
-        ctx.fillText("STANDBY READY", centerX, centerY - 28);
+        ctx.fillStyle = "#9B9691";
+        ctx.font = "800 11px var(--font-display, monospace)";
+        ctx.fillText("STANDBY IDLE", centerX, centerY - 32);
 
-        ctx.fillStyle = "#FFFFFF";
-        ctx.font = "900 64px var(--font-heading, sans-serif)";
-        ctx.fillText("#000", centerX, centerY + 8);
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = "900 68px var(--font-heading, sans-serif)";
+        ctx.fillText("#000", centerX, centerY + 10);
       }
 
       animationRef.current = requestAnimationFrame(renderLoop);
@@ -293,10 +394,9 @@ export default function ParticleSphere3D({
 
   return (
     <div className="w-full flex items-center justify-center py-2 relative aspect-square max-w-[380px] md:max-w-[420px] mx-auto select-none">
-      {/* Carbon hairline absolute background frame border anchor */}
       <canvas
         ref={canvasRef}
-        className="block bg-[#0A0908] rounded-full border-2 border-[#23211F] z-10 transition-all duration-300"
+        className="block bg-[#000000] rounded-full border-2 border-[#23211F] z-10 transition-all duration-300"
       />
     </div>
   );

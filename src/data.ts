@@ -24,25 +24,25 @@ export const MC_CHARACTERS: MCCharacter[] = [
 export const INITIAL_PRIZES: Prize[] = [
   {
     id: "grand-stash",
-    title: "CN Grand Stash (₦50,000)",
+    title: "CN Grand Stash Booster",
     description: "The ultimate savings booster locked on Cowrywise for 3 months!",
     count: 1,
     remaining: 1,
     icon: "Coins",
     color: "from-amber-400 to-amber-600 text-amber-700",
     badgeColor: "bg-amber-100 text-amber-800 border-amber-300",
-    cashValue: 50000
+    cashValue: 0
   },
   {
     id: "mini-stash",
-    title: "Cowrywise Savings (₦10,000)",
+    title: "Cowrywise Savings",
     description: "Instant investment fund credited directly to your Cowrywise account.",
     count: 5,
     remaining: 5,
     icon: "Wallet",
     color: "from-brand-blue to-blue-700 text-blue-700",
     badgeColor: "bg-blue-100 text-brand-blue border-blue-300",
-    cashValue: 10000
+    cashValue: 0
   },
   {
     id: "premium-hoodie",
@@ -53,7 +53,7 @@ export const INITIAL_PRIZES: Prize[] = [
     icon: "Shirt",
     color: "from-brand-green to-emerald-700 text-emerald-800",
     badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    cashValue: 15000
+    cashValue: 0
   },
   {
     id: "smart-bottle",
@@ -64,7 +64,7 @@ export const INITIAL_PRIZES: Prize[] = [
     icon: "CupSoda",
     color: "from-cyan-500 to-cyan-700 text-cyan-800",
     badgeColor: "bg-cyan-100 text-cyan-800 border-cyan-300",
-    cashValue: 7500
+    cashValue: 0
   },
   {
     id: "save-journal",
@@ -75,18 +75,18 @@ export const INITIAL_PRIZES: Prize[] = [
     icon: "Notebook",
     color: "from-purple-500 to-purple-700 text-purple-800",
     badgeColor: "bg-purple-100 text-purple-800 border-purple-300",
-    cashValue: 6000
+    cashValue: 0
   },
   {
     id: "canopy-voucher",
-    title: "LCC Canopy Airtime Bonus (₦5,000)",
+    title: "LCC Canopy Airtime Bonus",
     description: "Supercharged mobile data/airtime voucher for live social sharing.",
     count: 15,
     remaining: 15,
     icon: "Zap",
     color: "from-orange-500 to-orange-700 text-orange-800",
     badgeColor: "bg-orange-100 text-orange-800 border-orange-300",
-    cashValue: 5000
+    cashValue: 0
   }
 ];
 

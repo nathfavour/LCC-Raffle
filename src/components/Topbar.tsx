@@ -89,7 +89,7 @@ export default function Topbar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-[0_2px_12px_rgba(0,102,255,0.02)] select-none">
+    <header className="sticky top-0 z-40 w-full bg-[#141211]/90 backdrop-blur-md border-b border-[#23211F] shadow-[0_2px_12px_rgba(0,102,255,0.02)] select-none">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
         
         {/* Brand logo framing (LCC Hangout) */}
@@ -99,14 +99,14 @@ export default function Topbar() {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-heading font-black text-slate-900 tracking-tight uppercase">
+              <span className="text-xs font-heading font-black text-white tracking-tight uppercase">
                 COWRYWISE NOUN
               </span>
-              <span className="bg-[#10B981]/10 text-[#10B981] text-[8px] font-mono font-bold px-1.5 py-0.5 rounded">
+              <span className="bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/25 text-[8px] font-mono font-bold px-1.5 py-0.5 rounded">
                 LCC 2026
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 font-mono tracking-tight uppercase leading-none">
+            <p className="text-[10px] text-[#9B9691] font-mono tracking-tight uppercase leading-none">
               Ambassadors Hangout Raffle
             </p>
           </div>
@@ -118,8 +118,8 @@ export default function Topbar() {
             to="/raffle"
             className={`px-4 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider transition-all ${
               location.pathname === "/raffle"
-                ? "bg-[#0066FF]/5 text-[#0066FF]"
-                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                ? "bg-[#0066FF]/10 text-[#0066FF]"
+                : "text-[#9B9691] hover:text-white hover:bg-[#1E1B19]"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -130,8 +130,8 @@ export default function Topbar() {
             to="/raffle/draw"
             className={`px-4 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider transition-all ${
               location.pathname === "/raffle/draw"
-                ? "bg-[#0066FF]/5 text-[#0066FF]"
-                : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                ? "bg-[#0066FF]/10 text-[#0066FF]"
+                : "text-[#9B9691] hover:text-white hover:bg-[#1E1B19]"
             }`}
           >
             <span className="flex items-center gap-2">
@@ -143,8 +143,8 @@ export default function Topbar() {
               to="/raffle/admin"
               className={`px-4 py-2 rounded-xl text-xs font-heading font-bold uppercase tracking-wider transition-all ${
                 location.pathname === "/raffle/admin"
-                  ? "bg-[#10B981]/5 text-[#10B981]"
-                  : "text-slate-500 hover:text-[#10B981] hover:bg-slate-50"
+                  ? "bg-[#10B981]/10 text-[#10B981]"
+                  : "text-[#9B9691] hover:text-[#10B981] hover:bg-[#1E1B19]"
               }`}
             >
               <span className="flex items-center gap-2 animate-pulse">
@@ -157,11 +157,11 @@ export default function Topbar() {
         {/* Right Corner: User profile and Auth status */}
         <div className="flex items-center gap-3">
           {loading ? (
-            <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-[#1E1B19] border border-[#23211F] flex items-center justify-center">
               <Loader2 size={14} className="text-[#0066FF] animate-spin" />
             </div>
           ) : user ? (
-            <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-100/80 p-1.5 rounded-full pr-4">
+            <div className="flex items-center gap-2.5 bg-[#141211] border border-[#23211F] p-1.5 rounded-full pr-4">
               <img
                 src={user.photoURL || "https://lh3.googleusercontent.com/a/default-user=s80"}
                 alt={user.displayName || "Ambassador User"}
@@ -169,25 +169,25 @@ export default function Topbar() {
                 className="w-7 h-7 rounded-full border border-[#0066FF]/20 object-cover"
               />
               <div className="text-left hidden sm:block max-w-[124px]">
-                <h4 className="text-[11px] font-heading font-black text-slate-800 leading-none truncate">
+                <h4 className="text-[11px] font-heading font-black text-white leading-none truncate">
                   {user.displayName || "Ambassador"}
                 </h4>
-                <p className="text-[9px] font-mono text-slate-400 truncate mt-0.5 max-w-[120px]">
+                <p className="text-[9px] font-mono text-[#9B9691] truncate mt-0.5 max-w-[120px]">
                   {isAdmin ? "🛡️ Administrator" : "🎟️ Registered"}
                 </p>
               </div>
               <button
                 onClick={handleLogout}
                 title="Sign Out of Portal"
-                className="ml-2 w-7 h-7 rounded-full bg-white hover:bg-red-50 text-slate-400 hover:text-red-500 flex items-center justify-center border border-slate-200 cursor-pointer transition-colors"
-              >
+                className="ml-2 w-7 h-7 rounded-full bg-[#0B0A09] hover:bg-red-950/20 text-[#9B9691] hover:text-red-400 flex items-center justify-center border border-[#23211F] cursor-pointer transition-colors"
+               >
                 <LogOut size={12} />
               </button>
             </div>
           ) : (
             <button
               onClick={handleLogin}
-              className="group cursor-pointer bg-slate-900 hover:bg-slate-850 text-white font-heading font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl border border-slate-900 shadow-[0_4px_12px_rgba(0,0,0,0.08)] flex items-center gap-2 transition-all active:translate-y-0.5"
+              className="group cursor-pointer bg-[#0B0A09] hover:bg-[#131110] text-white font-heading font-black text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl border-2 border-[#23211F] shadow-sm flex items-center gap-2 transition-all active:translate-y-0.5"
             >
               <LogIn size={13} className="group-hover:translate-x-0.5 transition-transform" />
               <span>Sign In with Google</span>
