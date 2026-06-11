@@ -1,48 +1,58 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Default-deny catch-all rule as the Global Safety Net
+    // 1. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions for validation
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Checking if the verified user email exists in config/auth allowed_admins list
+    function isAdmin() {
+      return isEmailVerified() && (
+        request.auth.token.email in get(/databases/$(database)/documents/config/auth).data.allowed_admins
+      );
+    }
+
     function isValidTicket(data) {
-      return data.ticketNumber is int 
-        && data.ticketNumber >= 0 
-        && data.ticketNumber <= 400
-        && data.name is string 
-        && data.name.size() > 0 
-        && data.name.size() <= 100
-        && data.contact is string 
-        && data.contact.size() > 0 
-        && data.contact.size() <= 100
-        && data.drawn is bool;
+      return data.keys().hasAll(['ticketNumber', 'name', 'contact', 'assignedAt', 'drawn']) &&
+             data.keys().size() <= 7 &&
+             data.ticketNumber is int &&
+             data.ticketNumber >= 0 &&
+             data.ticketNumber <= 400 &&
+             data.name is string &&
+             data.name.size() > 0 &&
+             data.name.size() < 200 &&
+             data.contact is string &&
+             data.contact.size() > 0 &&
+             data.contact.size() < 200 &&
+             data.drawn is bool;
     }
 
-    // Match tickets collection
-    match /tickets/{ticketId} {
-      allow read: if true; // Public lookup portal searches tickets
-      allow create: if isSignedIn() && isValidId(ticketId) && isValidTicket(request.resource.data) 
-        && request.resource.data.assignedAt == request.time;
-      allow update: if isSignedIn() && isValidId(ticketId) && isValidTicket(request.resource.data);
-      allow delete: if isSignedIn() && isValidId(ticketId);
+    // 2. Auth Config Documents
+    match /config/auth {
+      allow read: if true;
+      allow write: if isEmailVerified() && (
+        resource == null || 
+        request.auth.token.email in request.resource.data.allowed_admins ||
+        request.auth.token.email in resource.data.allowed_admins
+      );
     }
 
-    // Match prizes collection
-    match /prizes/{prizeId} {
-      allow read: if true; // Anyone can display interactive prizes
-      allow create, update: if isSignedIn() && isValidId(prizeId);
-      allow delete: if isSignedIn() && isValidId(prizeId);
+    // 3. Tickets Matching (Strict Bounded 0-400, deterministic structure)
+    match /tickets/{ticketNumber} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidTicket(request.resource.data);
+      allow update: if isAdmin() && isValidTicket(request.resource.data);
+      allow delete: if isAdmin();
     }
   }
 }

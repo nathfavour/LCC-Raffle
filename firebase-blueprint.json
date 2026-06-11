@@ -1,76 +1,59 @@
 {
   "entities": {
     "Ticket": {
-      "title": "Ticket",
-      "description": "Represents an assigned ticket entry with a number between 0 and 400",
+      "title": "Raffle Ticket",
+      "description": "Represents an active raffle ticket reservation and drawing status",
       "type": "object",
       "properties": {
         "ticketNumber": {
           "type": "integer",
-          "description": "Unique assigned ticket number from 0 to 400"
+          "description": "Unique assigned ticket ID constrained strictly between 0 and 400"
         },
         "name": {
           "type": "string",
-          "description": "Full name of the ticket holder"
+          "description": "Attendee full name"
         },
         "contact": {
           "type": "string",
-          "description": "Contact identifier or social handle"
+          "description": "Contact info / handle"
         },
         "assignedAt": {
           "type": "string",
           "format": "date-time",
-          "description": "Timestamp when the ticket was generated"
+          "description": "Timestamp when the ticket was registered"
         },
         "drawn": {
           "type": "boolean",
-          "description": "Whether this ticket has won a raffle prize"
-        },
-        "drawnAt": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp when this ticket was drawn as a winner"
+          "description": "Whether this ticket has been drawn in the raffle"
         },
         "prizeTitle": {
           "type": "string",
-          "description": "Title of the prize won"
+          "description": "Title of the prize won if drawn"
         }
       },
       "required": ["ticketNumber", "name", "contact", "assignedAt", "drawn"]
     },
-    "Prize": {
-      "title": "Prize",
-      "description": "Raffle prize category available for the event draws",
+    "Auth": {
+      "title": "Auth Config",
+      "description": "Stores the array of whitelisted admin emails for firestore rule validation",
       "type": "object",
       "properties": {
-        "title": {
-          "type": "string",
-          "description": "Raffle prize title"
-        },
-        "count": {
-          "type": "integer",
-          "description": "Initial stock count"
-        },
-        "remaining": {
-          "type": "integer",
-          "description": "Remaining stock count"
-        },
-        "cashValue": {
-          "type": "number",
-          "description": "Estimated cash valuation in Naira"
+        "allowed_admins": {
+          "type": "array",
+          "description": "List of allowed admin emails"
         }
       },
-      "required": ["title", "count", "remaining", "cashValue"]
+      "required": ["allowed_admins"]
     }
   },
   "firestore": {
-    "/tickets/{ticketId}": {
+    "/tickets/{ticketNumber}": {
       "schema": "Ticket",
-      "description": "Raffle ticket entries"
+      "description": "Raffle ticket allocations"
     },
-    "/prizes/{prizeId}": {
-      "schema": "Prize",
-      "description": "Available prizes registry"
+    "/config/auth": {
+      "schema": "Auth",
+      "description": "Whitelisted admin email verification node"
     }
   }
 }

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { collection, doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
+import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { INITIAL_PRIZES } from "../data";
-import { Trophy, Play, RefreshCw, Zap, Volume2, Award, Sparkles, AlertCircle, Sparkle } from "lucide-react";
+import { Trophy, Play, Volume2, Sparkles, Award } from "lucide-react";
+import Topbar from "./Topbar";
+import ParticleSphere3D from "./ParticleSphere3D";
 
 interface TicketData {
   id: string;
@@ -25,7 +27,6 @@ interface PrizeData {
 export default function LiveDraw() {
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [prizes, setPrizes] = useState<PrizeData[]>(() => {
-    // Load default prizes or fetch from localStorage/Firebase if we want
     return INITIAL_PRIZES.map((p) => ({
       id: p.id,
       title: p.title,
@@ -43,8 +44,10 @@ export default function LiveDraw() {
   const [winnerTicket, setWinnerTicket] = useState<TicketData | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
-  // Announcer commentary
-  const [mcCommentary, setMcCommentary] = useState("VIBE CHECK! Select a prize tier below, and trigger the wheel to announce our next winner!");
+  // Announcer commentary states
+  const [mcCommentary, setMcCommentary] = useState(
+    "CHAI! VIBE CHECK! Pick a massive prize category tier below, and hit SPIN to initiate the live virtual draw!"
+  );
   const [isAiPowered, setIsAiPowered] = useState(false);
   const [commentaryLoading, setCommentaryLoading] = useState(false);
 
@@ -99,9 +102,9 @@ export default function LiveDraw() {
 
   const fallbackCommentary = (winnerName: string, prizeTitle: string) => {
     const templates = [
-      "Oya make some noise! {winner} has won the {prize}! Please hold your stashes tightly, Lekki monkeys are watching!",
-      "Mad o! Double congratulations to {winner} for bagging the {prize}! Your savings on Cowrywise is paying off already!",
-      "No caps! {winner} is walking home with {prize}! Lock this stashes on the Cowrywise app immediately and win compound interest!",
+      "Oya make some noise! {winner} has won the {prize}! Run and lock this stash in your Cowrywise app immediately, Lekki monkeys are watching!",
+      "Mad o! Double congratulations to {winner} for bagging the {prize}! Your savings discipline is paying off already!",
+      "Compound interest standard! {winner} is walking home with {prize}! Lock this stash now on Cowrywise!",
     ];
     const picked = templates[Math.floor(Math.random() * templates.length)];
     setMcCommentary(picked.replace("{winner}", winnerName).replace("{prize}", prizeTitle));
@@ -116,7 +119,7 @@ export default function LiveDraw() {
     const eligibleTickets = tickets.filter((tk) => !tk.drawn);
 
     if (eligibleTickets.length === 0) {
-      alert(" RULING ERROR: There are no eligible, undrawn tickets in the active pool database!");
+      alert("⚠️ RULING ERROR: There are no eligible, undrawn tickets in the active pool database!");
       return;
     }
 
@@ -170,7 +173,6 @@ export default function LiveDraw() {
       } else {
         // --- ROLLING: calculate visual exponential decay progress ---
         const progress = elapsed / duration;
-        // Delay grows exponentially based on progress cubic formula
         const currentDelay = initialDelay + Math.pow(progress, 3) * 550;
 
         // Sequence cycle sequential numbers (0 to 400)
@@ -199,135 +201,104 @@ export default function LiveDraw() {
   };
 
   return (
-    <div className="h-screen bg-[#000000] text-[#E2E8F0] overflow-hidden flex flex-col justify-between p-6 md:p-8 select-none relative">
-      {/* Cinematic Background Atmosphere */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#0066FF]/5 blur-3xl pointer-events-none rounded-full"></div>
+    <div className="min-h-screen bg-[#F9FAFB] text-slate-800 flex flex-col justify-between select-none">
+      
+      {/* Dynamic Topbar Header with built-in Auth check */}
+      <Topbar />
 
-      {/* Top Bar Branding Info */}
-      <header className="flex items-center justify-between z-10">
-        <div className="flex items-center gap-3">
-          <span className="w-3 h-3 rounded-full bg-[#0066FF] animate-ping"></span>
-          <div>
-            <h1 className="text-sm font-heading font-black tracking-widest text-white uppercase">
-              COWRYWISE PRESENTATION SCREEN
-            </h1>
-            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">
-              Lagos LCC Canopy Hangout Draws 2026
-            </p>
+      {/* Primary Cinematic Content Stage */}
+      <main className="flex-1 flex flex-col items-center justify-center p-4 py-8 md:py-12 max-w-4xl mx-auto w-full space-y-8 z-10">
+        
+        {/* Active Target Prize Banner card */}
+        {selectedPrize && (
+          <div className="inline-flex flex-col items-center space-y-1.5 animate-fade-in">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-black">
+              ACTIVE RAFFLE STASH
+            </span>
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.03)] px-6 py-3 flex items-center gap-3">
+              <Trophy size={16} className="text-amber-400 fill-amber-350" />
+              <h3 className="text-sm font-heading font-black text-slate-900 uppercase tracking-wider">
+                {selectedPrize.title}
+              </h3>
+              <span className="text-[10px] bg-slate-50 border border-slate-150 px-3 py-0.5 rounded-full font-mono text-[#0066FF] font-black">
+                {selectedPrize.remaining} left
+              </span>
+            </div>
           </div>
+        )}
+
+        {/* Cinematic 3D Particle Spinning Sphere */}
+        <div className="relative flex items-center justify-center w-full">
+          {/* Edge Ambient shadow glowing aura */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#0066FF]/4 blur-[60px] rounded-full pointer-events-none"></div>
+
+          <ParticleSphere3D
+            isRolling={isRolling}
+            currentDisplayNum={currentDisplayNum}
+            winnerTicketNumber={winnerTicket ? winnerTicket.ticketNumber : null}
+          />
         </div>
 
-        <button
-          onClick={handleResetPrizesStock}
-          className="cursor-pointer font-mono text-[9px] text-slate-500 hover:text-white bg-[#0A0908] hover:bg-[#1E1B19] border border-[#23211F] px-3.5 py-1.5 rounded-full transition-all"
-        >
-          RESTOCK PRIZES
-        </button>
-      </header>
-
-      {/* Center Cinematic Stage Panel */}
-      <main className="flex-1 flex flex-col items-center justify-center py-6 z-10 max-w-4xl mx-auto w-full">
-        
-        <div className="w-full text-center space-y-10">
-          
-          {/* Active Target Prize Card Banner */}
-          {selectedPrize && (
-            <div className="inline-flex flex-col items-center space-y-1">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500 font-bold">
-                CURRENT DRAW PRIZE CATEGORY
+        {/* Large Spin Execution Trigger Button */}
+        <div className="w-full text-center">
+          <button
+            onClick={handleStartDraw}
+            disabled={isRolling || !selectedPrize}
+            className="group cursor-pointer bg-[#0066FF] hover:bg-[#0055DD] text-white font-heading font-black text-sm uppercase tracking-widest px-14 py-4.5 rounded-2xl border-2 border-[#0066FF] shadow-[0_12px_28px_rgba(0,102,255,0.22)] active:translate-y-0.5 transition-all disabled:opacity-40 disabled:pointer-events-none"
+          >
+            {isRolling ? (
+              <span className="flex items-center justify-center gap-3">
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+                POOLED GENERATION...
               </span>
-              <div className="bg-[#141211] border-2 border-[#23211F] px-6 py-2.5 rounded-2xl shadow-tactile-md flex items-center gap-3">
-                <Trophy size={16} className="text-amber-400" />
-                <h3 className="text-sm font-heading font-black text-white uppercase tracking-wider">
-                  {selectedPrize.title}
-                </h3>
-                <span className="text-[10px] bg-[#0A0908] border border-[#23211F] px-2.5 py-0.5 rounded-full font-mono text-[#10B981] font-bold">
-                  {selectedPrize.remaining} remain
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Cinematic Rapid Reel Component */}
-          <div className="relative flex items-center justify-center">
-            
-            {/* Massive Tech Digital Outer Plate */}
-            <div className={`w-72 h-72 rounded-full border-4 ${isRolling ? "border-[#0066FF] animate-neon-glow" : "border-[#23211F]"} bg-[#0A0908] flex flex-col items-center justify-center shadow-tactile-lg relative overflow-hidden transition-all duration-300`}>
-              
-              {/* Internal radar lines */}
-              <div className="absolute inset-x-0 h-0.5 bg-[#23211F] top-1/2 -translate-y-1/2"></div>
-              <div className="absolute inset-y-0 w-0.5 bg-[#23211F] left-1/2 -translate-x-1/2"></div>
-
-              <div className="text-center z-10">
-                <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest leading-none mb-3">
-                  {isRolling ? "DECAYING..." : "POOL DIGIT"}
-                </p>
-                
-                {/* Rolling Number */}
-                <h2 className="text-7xl font-display font-black text-white tracking-wider leading-none drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-                  #{currentDisplayNum.toString().padStart(3, "0")}
-                </h2>
-              </div>
-
-              {/* Edge Specular Highlights */}
-              <div className="absolute top-2 w-36 h-0.5 bg-[#0066FF]/30 blur-xs rounded"></div>
-            </div>
-
-            {/* Glowing Orbit Rings */}
-            <div className="absolute -inset-8 rounded-full border border-dashed border-[#23211F] animate-spin [animation-duration:45s] pointer-events-none"></div>
-          </div>
-
-          {/* Core Central Trigger Activation Button */}
-          <div>
-            <button
-              onClick={handleStartDraw}
-              disabled={isRolling || !selectedPrize}
-              className="group cursor-pointer bg-[#0066FF] hover:bg-[#0055DD] text-white font-heading font-black text-sm uppercase tracking-widest px-14 py-5 rounded-2xl border-2 border-[#0066FF] shadow-tactile-lg active:translate-y-0.5 active:shadow-tactile-sm transition-all disabled:opacity-40"
-            >
-              {isRolling ? (
-                <span className="flex items-center gap-3">
-                  <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
-                  Rolling Pool...
-                </span>
-              ) : (
-                <span className="flex items-center gap-3">
-                  <Play size={16} fill="white" /> SPIN CINEMATIC DRAW
-                </span>
-              )}
-            </button>
-          </div>
-
+            ) : (
+              <span className="flex items-center justify-center gap-3">
+                <Play size={14} fill="white" /> SPIN DECISION WHEEL
+              </span>
+            )}
+          </button>
         </div>
 
       </main>
 
-      {/* Lower Interactive Hype Commentary Audio Tip Bar */}
-      <footer className="z-10 bg-[#0A0908] border-2 border-[#23211F] p-5 rounded-2xl max-w-2xl mx-auto w-full flex items-center gap-4 shadow-tactile-sm transition-all duration-300">
-        <div className="w-10 h-10 rounded-xl bg-[#1E1B19] border border-[#23211F] flex items-center justify-center text-[#10B981] shrink-0">
-          <Volume2 size={18} className="animate-pulse" />
-        </div>
-        <div className="text-left flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] font-mono tracking-widest text-[#10B981] uppercase font-bold">
-              MC STAGE SOUNDBOARD
-            </span>
-            {isAiPowered && (
-              <span className="text-[8px] bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/30 px-2 py-0.2 rounded uppercase font-mono font-bold font-sans">
-                ✨ Gemini AI
-              </span>
-            )}
+      {/* MC Commentary Ambient Tip Bar (Light Mode) */}
+      <div className="px-4 pb-6 w-full">
+        <footer className="bg-white border border-slate-100 p-4 rounded-2xl max-w-2xl mx-auto w-full flex items-center gap-4 shadow-[0_6px_20px_rgba(0,0,0,0.02)]">
+          <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-150 flex items-center justify-center text-[#10B981] shrink-0">
+            <Volume2 size={18} className="animate-pulse" />
           </div>
-          <p className="text-xs text-slate-300 font-sans italic truncate max-w-[500px]">
-            "{mcCommentary}"
-          </p>
-        </div>
-      </footer>
+          <div className="text-left flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-[9px] font-mono tracking-widest text-[#10B981] uppercase font-bold">
+                MC STAGE MICROPHONE
+              </span>
+              {isAiPowered && (
+                <span className="text-[8px] bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20 px-2 py-0.2 rounded uppercase font-mono font-bold font-sans">
+                  ✨ Gemini AI
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-600 font-sans italic truncate">
+              "{mcCommentary}"
+            </p>
+          </div>
+        </footer>
+      </div>
 
       {/* Available prizes grid selector shelves */}
-      <div className="w-full max-w-4xl mx-auto mt-6 border-t-2 border-[#23211F] pt-4 flex flex-wrap items-center justify-center gap-3 pb-2 z-10">
-        <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest w-full text-center mb-1">
-          Draw Prize Category Shelves
-        </span>
+      <div className="w-full max-w-4xl mx-auto border-t border-slate-100 bg-white/70 backdrop-blur-md py-5 flex flex-wrap items-center justify-center gap-2.5 px-4 z-10 shadow-sm">
+        <div className="w-full flex items-center justify-between px-3 mb-2">
+          <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest font-black">
+            SELECT DRAW TARGET CATEGORY
+          </span>
+          <button
+            onClick={handleResetPrizesStock}
+            className="cursor-pointer font-mono text-[9px] text-slate-400 hover:text-[#0066FF] hover:underline"
+          >
+            RESET STOCK
+          </button>
+        </div>
+        
         {prizes.map((p) => {
           const isSelected = selectedPrize?.id === p.id;
           return (
@@ -335,10 +306,10 @@ export default function LiveDraw() {
               key={p.id}
               onClick={() => !isRolling && setSelectedPrize(p)}
               disabled={isRolling}
-              className={`cursor-pointer px-4 py-2 rounded-xl border-2 text-[11px] font-bold transition-all ${
+              className={`cursor-pointer px-4 py-2 rounded-xl border text-[11px] font-bold transition-all ${
                 isSelected
-                  ? "border-[#0066FF] bg-[#141211] text-white"
-                  : "border-[#23211F] bg-[#0A0908] text-slate-400 hover:border-[#23211F]/80 hover:text-white"
+                  ? "border-[#0066FF] bg-[#0066FF]/5 text-[#0066FF] shadow-sm"
+                  : "border-slate-200 bg-white text-slate-500 hover:border-slate-350 hover:text-slate-800"
               }`}
             >
               {p.title} ({p.remaining} left)
@@ -349,53 +320,53 @@ export default function LiveDraw() {
 
       {/* Cinematic Full-screen Victory Celebration Overlay */}
       {showCelebration && winnerTicket && (
-        <div className="fixed inset-0 bg-[#000000] flex flex-col items-center justify-center z-50 p-6 animate-fade-in relative">
+        <div className="fixed inset-0 bg-[#FAFAFA]/95 backdrop-blur-lg flex flex-col items-center justify-center z-50 p-6 animate-fade-in selection:bg-[#0066FF]/20">
           
-          {/* Confetti flashing effects */}
-          <div className="fixed top-20 left-20 w-80 h-80 bg-[#10B981]/15 blur-[100px] rounded-full animate-pulse"></div>
-          <div className="fixed bottom-20 right-20 w-80 h-80 bg-[#0066FF]/15 blur-[100px] rounded-full animate-pulse"></div>
+          {/* Soft background ambient gradients */}
+          <div className="fixed top-20 left-20 w-80 h-80 bg-[#10B981]/8 blur-[100px] rounded-full animate-pulse"></div>
+          <div className="fixed bottom-20 right-20 w-80 h-80 bg-[#0066FF]/8 blur-[100px] rounded-full animate-pulse"></div>
 
-          <div className="w-full max-w-2xl text-center space-y-12 z-10">
+          <div className="w-full max-w-2xl text-center space-y-10 z-10">
             
             {/* Victory Badge */}
-            <div className="inline-flex items-center gap-2 bg-[#10B981]/10 border border-[#10B981]/30 px-4 py-2 rounded-full animate-bounce">
+            <div className="inline-flex items-center gap-2 bg-[#10B981]/15 border border-[#10B981]/20 px-4 py-2 rounded-full animate-bounce">
               <Trophy size={16} className="text-[#10B981] animate-spin" />
               <span className="font-mono text-xs tracking-widest text-[#10B981] uppercase font-black">
                 WE HAVE A WINNER!
               </span>
             </div>
 
-            {/* Winner Spotlight Card */}
-            <div className="bg-[#141211] border-4 border-[#10B981] p-10 md:p-14 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.2)] max-w-xl mx-auto space-y-6 transform scale-105 duration-300">
+            {/* Winner Spotlight Card (White Base with Premium Soft Shadow) */}
+            <div className="bg-white border-2 border-[#10B981] p-10 md:p-12 rounded-3xl shadow-[0_20px_50px_rgba(16,185,129,0.12)] max-w-xl mx-auto space-y-6 transform scale-105 duration-300">
               
-              <div className="space-y-1.5">
-                <span className="text-xs font-mono text-slate-500 uppercase tracking-widest">
-                  LUCKY WINNER CLAIMED
+              <div className="space-y-1">
+                <span className="text-xs font-mono text-slate-400 uppercase tracking-widest">
+                  LUCKY WINNER DECLARED
                 </span>
-                <h1 className="text-4xl md:text-5xl font-heading font-black text-[#10B981] tracking-tight uppercase leading-none pt-2 animate-pulse">
+                <h1 className="text-4xl md:text-5xl font-heading font-black text-[#10B981] tracking-tight uppercase leading-none pt-2">
                   {winnerTicket.name}
                 </h1>
-                <p className="text-xs font-mono text-slate-400 uppercase tracking-widest pt-1">
+                <p className="text-xs font-mono text-slate-500 uppercase tracking-widest pt-1">
                   CONTACT: {winnerTicket.contact}
                 </p>
               </div>
 
-              <div className="border-t-2 border-[#23211F] pt-6 flex justify-around items-center gap-4">
+              <div className="border-t border-slate-100 pt-6 flex justify-around items-center gap-4 text-left">
                 
-                <div className="text-left">
-                  <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
+                <div>
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
                     DRAWN PRIZE
                   </span>
-                  <span className="text-sm font-heading font-black text-white uppercase tracking-wide">
+                  <span className="text-sm font-heading font-black text-slate-900 uppercase tracking-wide">
                     {selectedPrize?.title}
                   </span>
                 </div>
 
-                <div className="text-right border-l-2 border-[#23211F] pl-6">
-                  <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">
+                <div className="border-l border-slate-150 pl-6 text-right">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
                     TICKET POOL ID
                   </span>
-                  <span className="text-4xl font-display font-black text-white tracking-widest leading-none block pt-1">
+                  <span className="text-4xl font-display font-black text-slate-900 tracking-widest leading-none block pt-1">
                     #{winnerTicket.ticketNumber.toString().padStart(3, "0")}
                   </span>
                 </div>
@@ -404,15 +375,15 @@ export default function LiveDraw() {
 
             </div>
 
-            {/* Soundboard commentary line highlighting */}
-            <div className="bg-[#0A0908] border-2 border-[#23211F] p-6 rounded-2xl max-w-lg mx-auto text-center space-y-2 relative">
+            {/* Soundboard commentary line highlighting (White Card) */}
+            <div className="bg-white border border-slate-100 p-6 rounded-2xl max-w-lg mx-auto text-center space-y-2 shadow-sm">
               <p className="text-[9px] font-mono text-[#10B981] tracking-widest uppercase font-bold">
                 📢 MC COMMENTARY SHOUTOUT
               </p>
               {commentaryLoading ? (
-                <p className="text-xs text-slate-500 font-mono italic animate-pulse">Generating hilarious hype line...</p>
+                <p className="text-xs text-slate-400 font-mono italic animate-pulse">Generating hilarious hype line...</p>
               ) : (
-                <p className="text-sm text-slate-200 font-sans font-medium italic select-all">
+                <p className="text-sm text-slate-700 font-sans font-medium italic">
                   "{mcCommentary}"
                 </p>
               )}
@@ -422,7 +393,7 @@ export default function LiveDraw() {
             <div className="pt-2">
               <button
                 onClick={() => setShowCelebration(false)}
-                className="cursor-pointer bg-[#0A0908] hover:bg-[#1E1B19] text-slate-300 hover:text-white font-heading font-bold text-xs uppercase tracking-widest px-10 py-4 rounded-xl border-2 border-[#23211F] transition-all shadow-tactile-sm"
+                className="cursor-pointer bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-950 font-heading font-bold text-xs uppercase tracking-widest px-10 py-4 rounded-xl border border-slate-200 transition-all shadow-sm"
               >
                 RETURN TO PREVIEW STAGE
               </button>

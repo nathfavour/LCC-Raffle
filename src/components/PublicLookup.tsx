@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Search, Trophy, Ticket, Sparkles, Wifi } from "lucide-react";
+import { Search, Trophy, Ticket, Wifi } from "lucide-react";
+import Topbar from "./Topbar";
 
 interface TicketData {
   id: string;
@@ -41,7 +42,8 @@ export default function PublicLookup() {
 
   // Filter tickets dynamically as attendee types
   const filteredTickets = tickets.filter((tk) => {
-    const term = searchQuery.toLowerCase();
+    const term = searchQuery.toLowerCase().trim();
+    if (term === "") return false;
     return (
       tk.name.toLowerCase().includes(term) ||
       tk.contact.toLowerCase().includes(term) ||
@@ -50,22 +52,22 @@ export default function PublicLookup() {
   });
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#E2E8F0] px-4 py-8 md:py-12 flex flex-col justify-between selection:bg-[#0066FF]/30 selection:text-white">
-      {/* Background Ornaments */}
-      <div className="fixed top-1/4 left-1/4 w-72 h-72 bg-[#0066FF]/5 blur-3xl rounded-full pointer-events-none"></div>
-      <div className="fixed bottom-1/4 right-1/4 w-80 h-80 bg-[#10B981]/5 blur-3xl rounded-full pointer-events-none"></div>
+    <div className="min-h-screen bg-[#F9FAFB] text-slate-800 flex flex-col justify-between selection:bg-[#0066FF]/10 select-none">
+      
+      {/* Dynamic Topbar Header with built-in Auth check */}
+      <Topbar />
 
-      <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-center space-y-6 z-10">
+      <div className="max-w-xl mx-auto w-full px-4 py-8 md:py-12 flex-1 flex flex-col justify-center space-y-6 z-10">
         
         {/* Header Branding */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 bg-[#0A0908] border border-[#23211F] px-3.5 py-1.5 rounded-full shadow-tactile-sm">
+          <div className="inline-flex items-center gap-2 bg-[#0066FF]/5 border border-[#0066FF]/10 px-3.5 py-1.5 rounded-full shadow-[0_2px_8px_rgba(0,102,255,0.02)]">
             <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse"></span>
-            <span className="font-mono text-[10px] tracking-widest text-[#10B981] uppercase font-bold">
-              PUBLIC LOOKUP PORTAL
+            <span className="font-mono text-[10px] tracking-widest text-[#0066FF] uppercase font-black">
+              ATTENDEE LOOKUP PORTAL
             </span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-heading font-black tracking-tight text-white uppercase pt-1">
+          <h1 className="text-3xl font-heading font-black tracking-tight text-slate-900 uppercase pt-1">
             Raffle Ticket Finder
           </h1>
           <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto leading-relaxed">
@@ -73,82 +75,88 @@ export default function PublicLookup() {
           </p>
         </div>
 
-        {/* Live Telemetry Banner */}
-        <div className="bg-[#0A0908] border border-[#23211F] p-4 rounded-xl shadow-tactile-md text-center group transition-colors hover:border-[#10B981]/40 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-2 font-mono text-[8px] text-[#10B981]/60 flex items-center gap-1">
+        {/* Live Telemetry Banner (Cowrywise Palette) */}
+        <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.02)] relative overflow-hidden flex items-center justify-between">
+          <div className="text-left">
+            <p className="text-[10px] font-mono tracking-wider text-slate-400 uppercase font-black">
+              RAFFLE REGISTRY POOL STATUS
+            </p>
+            <p className="text-3xl font-display font-black text-slate-900 mt-1 tracking-tight">
+              <span className="text-[#10B981]">
+                {tickets.length}
+              </span>
+              <span className="text-slate-300 font-normal"> / 401</span>{" "}
+              <span className="text-xs font-sans text-slate-400 font-normal">Tickets Reserved</span>
+            </p>
+          </div>
+          
+          <div className="bg-emerald-50 text-[#10B981] border border-emerald-100 px-3 py-1.5 rounded-xl flex items-center gap-1.5 font-mono text-[9px] font-black uppercase">
             <Wifi size={10} className="animate-pulse" /> SYNCED
           </div>
-          <p className="text-[10px] font-mono tracking-wider text-slate-400 uppercase font-semibold">
-            Raffle Registry Pool Status
-          </p>
-          <p className="text-3xl font-display font-black text-white mt-1.5 tracking-tight">
-            <span className="text-[#10B981] drop-shadow-[0_0_8px_rgba(16,185,129,0.2)]">
-              {tickets.length}
-            </span>
-            <span className="text-slate-600 font-normal"> / 401</span>{" "}
-            <span className="text-xs font-sans text-slate-400 font-normal">Tickets Claimed</span>
-          </p>
         </div>
 
-        {/* Search Deck Card */}
-        <div className="bg-[#141211] border border-[#23211F] p-5 md:p-6 rounded-2xl shadow-tactile-lg space-y-4">
+        {/* Search Deck Card (White Canvas with Beautiful Shadow) */}
+        <div className="bg-white border border-slate-100 p-6 md:p-8 rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.03)] space-y-5">
           <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-              <Search size={18} />
+            <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+              <Search size={16} />
             </span>
             <input
               type="text"
               id="lookup-search"
-              placeholder="Enter your name or contact handle..."
+              placeholder="Search by your name or contact handle..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0A0908] border-2 border-[#23211F] focus:border-[#0066FF] hover:border-[#23211F]/80 rounded-xl py-3.5 pl-11 pr-4 text-sm text-white font-display placeholder-slate-500 focus:outline-none transition-all"
+              className="w-full bg-slate-50 border border-slate-200 focus:border-[#0066FF] hover:border-slate-300 rounded-xl py-3.5 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#0066FF]/5 transition-all font-medium"
             />
           </div>
 
-          {/* Results State */}
+          {/* Results list panel */}
           <div className="space-y-3 max-h-[320px] overflow-y-auto pr-1">
             {searchQuery.trim() === "" ? (
-              <div className="text-center py-8 text-slate-500 space-y-2">
-                <Ticket size={28} className="mx-auto text-slate-700 animate-float" />
-                <p className="text-xs font-medium">Type to lookup your assigned ticket info</p>
+              <div className="text-center py-10 text-slate-400 space-y-2">
+                <Ticket size={24} className="mx-auto text-slate-300 animate-bounce" />
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-350">Awaiting Search Input</p>
+                <p className="text-[10px] lowercase text-slate-400 max-w-xs mx-auto">Type in your registered name to reveal your assigned digit.</p>
               </div>
             ) : filteredTickets.length > 0 ? (
               filteredTickets.map((tk) => (
                 <div
                   key={tk.id}
                   id={`ticket-card-${tk.ticketNumber}`}
-                  className="bg-[#0A0908] border-2 border-[#23211F] p-4 rounded-xl flex items-center justify-between gap-4 transition-all hover:bg-[#1E1B19] group hover:border-[#0066FF]/40 shadow-tactile-sm"
+                  className="bg-white border border-slate-100 hover:border-[#0066FF]/30 p-4 rounded-xl flex items-center justify-between gap-4 transition-all hover:shadow-[0_4px_18px_rgba(0,102,255,0.03)] hover:scale-[1.01] group"
                 >
                   <div className="text-left overflow-hidden">
-                    <h3 className="text-[#E2E8F0] font-heading font-black text-sm group-hover:text-white transition-colors truncate">
+                    <h3 className="text-slate-900 font-heading font-black text-sm transition-colors truncate">
                       {tk.name}
                     </h3>
-                    <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate uppercase">
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5 truncate uppercase">
                       {tk.contact}
                     </p>
                     {tk.drawn && (
-                      <span className="inline-flex items-center gap-1.5 mt-2 bg-[#10B981]/10 border border-[#10B981]/30 text-[#10B981] text-[9px] font-mono font-bold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+                      <span className="inline-flex items-center gap-1.5 mt-2 bg-emerald-50 border border-emerald-105 text-[#10B981] text-[9px] font-mono font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
                         <Trophy size={10} /> Won: {tk.prizeTitle || "Raffle Prize"}
                       </span>
                     )}
                   </div>
 
                   {/* Lucky Ticket Badge (Strictly Bounded 0-400) */}
-                  <div className="shrink-0 flex flex-col items-center justify-center border-l-2 border-[#23211F] pl-4 h-12">
-                    <span className="text-[9px] font-mono text-slate-500 uppercase tracking-widest leading-none">
-                      TICKET
+                  <div className="shrink-0 flex flex-col items-center justify-center border-l border-slate-100 pl-4 h-12 min-w-[70px]">
+                    <span className="text-[8px] font-mono text-slate-400 uppercase tracking-widest leading-none font-black">
+                      TICKET ID
                     </span>
-                    <span className="text-2xl font-display font-black text-[#10B981] leading-none mt-1 animate-neon-glow px-2 rounded">
+                    <span className="text-2xl font-display font-black text-[#0066FF] leading-none mt-1">
                       #{tk.ticketNumber.toString().padStart(3, "0")}
                     </span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="text-center py-10 text-slate-500 space-y-2">
-                <p className="text-xs">No matching tickets found in pool.</p>
-                <p className="text-[10px] text-slate-600 font-mono">Check spelling or ask the entry gatekeeper administrator.</p>
+              <div className="text-center py-10 text-slate-400 space-y-1.5 border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+                <p className="text-xs font-bold text-slate-500">NO TICKET REGISTERED</p>
+                <p className="text-[10px] text-slate-400 max-w-[280px] mx-auto leading-relaxed">
+                  We couldn't locate any ticket linked to "{searchQuery}". Please reach out to the gate administrators at the LCC desk!
+                </p>
               </div>
             )}
           </div>
@@ -157,9 +165,9 @@ export default function PublicLookup() {
       </div>
 
       {/* Footer Branding */}
-      <footer className="w-full text-center py-6 text-[10px] font-mono text-slate-600 select-none z-10 space-y-1">
-        <p>OPENBRICKS 2.0 • HIGH-SECURITY DIGITAL SANCTUARY</p>
-        <p className="text-slate-700">© 2026 EVENT CONCERT COWRYWISE AMBASSADORS</p>
+      <footer className="w-full text-center py-6 text-[10px] font-mono text-slate-400 select-none z-10 space-y-1 mt-auto border-t border-slate-50">
+        <p>COWRYWISE COZY LIGHT WORKSPACE • SECURED SYSTEM</p>
+        <p className="text-slate-350">© 2026 LAGOS LCC HANGOUT NOUN AMBASSADORS</p>
       </footer>
     </div>
   );

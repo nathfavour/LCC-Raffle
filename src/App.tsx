@@ -63,12 +63,13 @@ export default function App() {
     <BrowserRouter>
       {/* Route map bindings */}
       <Routes>
+        <Route path="/" element={<Navigate to="/raffle/draw" replace />} />
         <Route path="/raffle" element={<PublicLookup />} />
         <Route path="/raffle/admin" element={<AdminDesk />} />
         <Route path="/raffle/draw" element={<LiveDraw />} />
         
-        {/* Wildcard redirect to Public Lookup as requested target default */}
-        <Route path="*" element={<Navigate to="/raffle" replace />} />
+        {/* Wildcard redirect to Live Draw as the cinematic default */}
+        <Route path="*" element={<Navigate to="/raffle/draw" replace />} />
       </Routes>
 
       {/* Floating global router navigation hub */}

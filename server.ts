@@ -33,6 +33,16 @@ async function startServer() {
     console.log("No Gemini API key detected. Running offline/fallback local commentary templates.");
   }
 
+  // API Route: Return whitelisted admin emails parsed from the ADMINS environment variable
+  app.get("/api/admins", (req, res) => {
+    const rawAdmins = process.env.ADMINS || "nathfavour02@gmail.com,admin1@nounlogic.com,admin2@nounlogic.com";
+    const adminsList = rawAdmins
+      .split(",")
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => e.length > 0);
+    return res.json({ success: true, admins: adminsList });
+  });
+
   // API Route: Generate a hilarious, highly customized Nigerian hype commentator line
   app.post("/api/mc-hype", async (req, res) => {
     try {
