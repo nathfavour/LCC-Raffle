@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-heading: "Outfit", system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-brand-blue: #0066f5;
+  --color-brand-dark: #0c2340;
+  --color-brand-green: #00d28a;
+  --color-brand-light: #f4f7fe;
+  --color-brand-muted: #5a6e85;
+  
+  --shadow-premium: 0 10px 30px -5px rgba(12, 35, 64, 0.08), 0 4px 12px -3px rgba(12, 35, 64, 0.03);
+  --shadow-glow-green: 0 0 25px rgba(0, 210, 138, 0.25);
+  --shadow-glow-blue: 0 0 25px rgba(0, 102, 245, 0.25);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    background-color: #f4f7fe;
+    color: #0c2340;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom keyframes for custom animations (spin deceleration, confetti, pulse lights, ticket entrance) */
+@keyframes coin-bounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-8px) rotate(15deg); }
+}
+
+@keyframes ticket-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(0, 210, 138, 0.2); }
+  50% { box-shadow: 0 0 30px rgba(0, 210, 138, 0.6); }
+}
+
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-coin {
+  animation: coin-bounce 3s ease-in-out infinite;
+}
+
+.animate-ticket-glow {
+  animation: ticket-glow 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float-subtle 4s ease-in-out infinite;
+}

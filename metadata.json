@@ -1,0 +1,6 @@
+{
+  "name": "Cowrywise NOUN Ambassadors Raffle Draw",
+  "description": "Premium, high-fidelity light-mode raffle draw application with localized MC commentator, sound effects and prize stashes for the LCC Hangout on Cowrywise NOUN ambassadors.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
