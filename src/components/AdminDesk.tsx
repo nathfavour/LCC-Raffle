@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { collection, doc, deleteDoc, getDocs, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
-import { ShieldCheck, UserPlus, Copy, Check, Trash2, RefreshCw, CheckCircle, Ticket, Phone, User, AlertTriangle, LogIn, Lock } from "lucide-react";
+import { ShieldCheck, UserPlus, Copy, Check, Trash2, RefreshCw, CheckCircle, Ticket, Phone, User, AlertTriangle, LogIn, Lock, Star, Sparkles, XCircle } from "lucide-react";
 import Topbar from "./Topbar";
 
 interface TicketData {
@@ -13,6 +13,7 @@ interface TicketData {
   assignedAt: any;
   drawn: boolean;
   prizeTitle?: string;
+  spotlight?: boolean;
 }
 
 export default function AdminDesk() {
@@ -27,6 +28,7 @@ export default function AdminDesk() {
 
   // Search/List in Admin
   const [tickets, setTickets] = useState<TicketData[]>([]);
+  const [spins, setSpins] = useState<any[]>([]);
   const [adminSearch, setAdminSearch] = useState("");
 
   // Modal State for Freshly Created Ticket
@@ -90,6 +92,48 @@ export default function AdminDesk() {
     });
     return () => unsub();
   }, [isAdmin]);
+
+  // Monitor spins in real-time if validated as admin
+  useEffect(() => {
+    if (!isAdmin) return;
+    const unsub = onSnapshot(collection(db, "spins"), (snapshot) => {
+      const list: any[] = [];
+      snapshot.forEach((docRef) => {
+        list.push({ id: docRef.id, ...docRef.data() });
+      });
+      list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setSpins(list);
+    }, (error) => {
+      console.warn("Could not load spins log in real-time", error);
+    });
+    return () => unsub();
+  }, [isAdmin]);
+
+  const handleToggleSpotlight = async (docId: string, current: boolean) => {
+    try {
+      await setDoc(doc(db, "tickets", docId), { spotlight: !current }, { merge: true });
+    } catch (e) {
+      console.error("Failed to toggle spotlight state:", e);
+    }
+  };
+
+  const handleToggleSpinStatus = async (spinId: string, currentStatus: string) => {
+    try {
+      const nextStatus = currentStatus === "valid" ? "discarded" : "valid";
+      await setDoc(doc(db, "spins", spinId), { status: nextStatus }, { merge: true });
+    } catch (e) {
+      console.error("Failed to toggle spin status", e);
+    }
+  };
+
+  const handleDeleteSpin = async (spinId: string) => {
+    if (!window.confirm("Do you want to permanently erase this audit record?")) return;
+    try {
+      await deleteDoc(doc(db, "spins", spinId));
+    } catch (e) {
+      console.error("Failed to delete spin record", e);
+    }
+  };
 
   const handleLogin = async () => {
     setLoading(true);
@@ -568,13 +612,30 @@ export default function AdminDesk() {
                       )}
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteTicket(tk.id)}
-                      className="cursor-pointer p-2.5 rounded-lg bg-red-950/20 border border-red-500/10 hover:border-red-500 text-red-400 hover:text-red-300 transition-colors"
-                      title="De-register Attendee"
-                    >
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {tk.drawn && (
+                        <button
+                          onClick={() => handleToggleSpotlight(tk.id, tk.spotlight || false)}
+                          className={`cursor-pointer p-2 rounded-xl border text-xs transition-all flex items-center gap-1.5 ${
+                            tk.spotlight
+                              ? "bg-amber-950/20 border-amber-500/40 text-amber-400"
+                              : "bg-[#0B0A09] border-[#23211F] text-slate-500 hover:text-white"
+                          }`}
+                          title={tk.spotlight ? "Unpin from Home Spotlight" : "Pin Spotlight to Home Screen Banner"}
+                        >
+                          <Star size={11} className={tk.spotlight ? "fill-amber-400 text-amber-400" : ""} />
+                          <span className="text-[9px] font-mono leading-none">{tk.spotlight ? "PINNED" : "PIN SPOTLIGHT"}</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleDeleteTicket(tk.id)}
+                        className="cursor-pointer p-2.5 rounded-lg bg-red-950/20 border border-red-500/40 hover:border-red-500 text-red-400 hover:text-red-300 transition-colors"
+                        title="De-register Attendee"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -586,6 +647,94 @@ export default function AdminDesk() {
             </div>
           </div>
 
+        </div>
+
+        {/* Live Spin History Ledger (Full-screen width audit trail section) */}
+        <div className="bg-[#141211] border border-[#23211F] p-6 md:p-8 rounded-3xl shadow-tactile-lg space-y-4 text-left">
+          <div className="pb-3 border-b border-[#23211F] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-heading font-black text-white uppercase tracking-tight flex items-center gap-1.5">
+                <Sparkles size={16} className="text-[#10B981]" />
+                Spin Audit History Logs Ledger
+              </h2>
+              <p className="text-xs text-[#9B9691] font-medium font-sans">
+                Real-time transparency trail for every wheel spin. Mark entries as "Discarded" (absent ticket holders, tests) to synchronize drawings.
+              </p>
+            </div>
+            <span className="bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/20 text-[10px] font-mono font-black px-3 py-1 rounded-lg self-start sm:self-center">
+              {spins.length} SPINS LOGGED
+            </span>
+          </div>
+
+          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+            {spins.length > 0 ? (
+              spins.map((sp) => {
+                const isDiscarded = sp.status === "discarded";
+                return (
+                  <div
+                    key={sp.id}
+                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                      isDiscarded
+                        ? "bg-[#0b0a09]/40 border-dashed border-[#23211F] opacity-50"
+                        : "bg-[#0B0A09] border-[#23211F] hover:border-[#10B981]/30"
+                    }`}
+                  >
+                    <div className="space-y-1 text-left">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[9px] font-mono font-black px-2 py-0.5 rounded uppercase tracking-wider ${
+                          isDiscarded
+                            ? "bg-red-950/20 text-red-400 border border-red-500/10"
+                            : "bg-emerald-950/20 text-[#10B981] border border-emerald-500/10"
+                        }`}>
+                          {isDiscarded ? "⛔ DISCARDED SPIN" : "❇️ VALID WINNER"}
+                        </span>
+                        <span className="text-[10px] font-mono text-[#9B9691]">
+                          {new Date(sp.timestamp).toLocaleString().toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div className="pt-1.5">
+                        <p className="text-xs font-mono text-slate-400 uppercase">
+                          CROWNED GIFT: <b className="text-white font-heading font-black">{sp.prizeTitle}</b>
+                        </p>
+                        <p className="text-sm font-heading font-black text-white uppercase tracking-tight mt-0.5">
+                          Winner Holder: {sp.winnerName} (<b className="font-display text-[#0066FF]">#{sp.winnerTicketNumber.toString().padStart(3, "0")}</b>)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                      <button
+                        onClick={() => handleToggleSpinStatus(sp.id, sp.status)}
+                        className={`cursor-pointer px-4.5 py-2.5 rounded-xl border text-[10px] font-mono font-black uppercase tracking-wider transition-all ${
+                          isDiscarded
+                            ? "border-[#10B981] bg-[#10B981]/15 text-[#10B981]"
+                            : "border-red-500/30 bg-red-950/10 text-red-400 hover:bg-red-950/20"
+                        }`}
+                      >
+                        {isDiscarded ? "Set Valid Winner" : "Discard Spin"}
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteSpin(sp.id)}
+                        className="cursor-pointer p-2.5 rounded-xl bg-red-950/20 border border-red-500/10 hover:border-red-500 text-red-400 hover:text-red-300 transition-colors"
+                        title="Purge Log"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-12 text-[#9B9691] border border-dashed border-[#23211F] rounded-2xl bg-[#0B0A09]">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/90">Audit trail clear</p>
+                <p className="text-[10px] text-[#9B9691] max-w-sm mx-auto leading-relaxed mt-1">
+                  No cinematic spins have been logged in the system ledger yet. Try running your first spin with live drawer.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
       </main>

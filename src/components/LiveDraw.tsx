@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { collection, doc, onSnapshot, setDoc, getDocs } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { INITIAL_PRIZES } from "../data";
 import { Trophy, Play, Volume2, Sparkles, Award } from "lucide-react";
 import Topbar from "./Topbar";
@@ -16,178 +17,266 @@ interface TicketData {
   prizeTitle?: string;
 }
 
-interface PrizeData {
-  id: string;
-  title: string;
-  count: number;
-  remaining: number;
-  cashValue: number;
-}
-
 export default function LiveDraw() {
   const [tickets, setTickets] = useState<TicketData[]>([]);
-  const [prizes, setPrizes] = useState<PrizeData[]>(() => {
-    return INITIAL_PRIZES.map((p) => ({
-      id: p.id,
-      title: p.title,
-      count: p.count,
-      remaining: p.remaining,
-      cashValue: p.cashValue
-    }));
-  });
+  const [prizes, setPrizes] = useState<any[]>(INITIAL_PRIZES);
+  const [selectedPrize, setSelectedPrize] = useState<any | null>(INITIAL_PRIZES[0]);
 
-  const [selectedPrize, setSelectedPrize] = useState<PrizeData | null>(null);
-
-  // Reel Rolling States
+  // Cinematic state
   const [isRolling, setIsRolling] = useState(false);
   const [currentDisplayNum, setCurrentDisplayNum] = useState(0);
   const [winnerTicket, setWinnerTicket] = useState<TicketData | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
 
-  // Announcer commentary states
-  const [mcCommentary, setMcCommentary] = useState(
-    "CHAI! VIBE CHECK! Pick a massive prize category tier below, and hit SPIN to initiate the live virtual draw!"
-  );
-  const [isAiPowered, setIsAiPowered] = useState(false);
-  const [commentaryLoading, setCommentaryLoading] = useState(false);
+  // Authenticated state
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
-  // Read registered tickets in real-time
+  // Sound effects commentary
+  const [mcCommentary, setMcCommentary] = useState("COWRYWISE LCC DRAW ACTIVE. CHOOSE A PRIZE CATEGORY AND PREPARE!");
+  const [commentaryLoading, setCommentaryLoading] = useState(false);
+  const [isAiPowered, setIsAiPowered] = useState(false);
+
+  // Real-time server variables
+  const [lastSpinId, setLastSpinId] = useState<string | null>(null);
+
+  // Load admins and evaluate Auth
   useEffect(() => {
-    const unsubscribe = onSnapshot(collection(db, "tickets"), (snapshot) => {
-      const ticketList: TicketData[] = [];
-      snapshot.forEach((doc) => {
-        ticketList.push({ id: doc.id, ...doc.data() } as TicketData);
-      });
-      setTickets(ticketList);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, "tickets");
-    });
-    return () => unsubscribe();
+    let isMounted = true;
+    async function loadAuthAndAdmins() {
+      try {
+        const res = await fetch("/api/admins");
+        const data = await res.json();
+        if (data.success && data.admins && isMounted) {
+          const loadedAdmins = data.admins.map((e: string) => e.toLowerCase());
+          onAuthStateChanged(auth, (currentUser) => {
+            if (!isMounted) return;
+            setUser(currentUser);
+            if (currentUser?.email) {
+              setIsAdmin(loadedAdmins.includes(currentUser.email.toLowerCase()));
+            } else {
+              setIsAdmin(false);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Auth config failed in LiveDraw:", err);
+      }
+    }
+    loadAuthAndAdmins();
+    return () => { isMounted = false; };
   }, []);
 
-  // Pre-select first prize if none set
+  // Sync tickets list real-time
   useEffect(() => {
-    if (!selectedPrize && prizes.length > 0) {
-      setSelectedPrize(prizes[0]);
-    }
-  }, [prizes, selectedPrize]);
-
-  // Trigger Gemini Hype Commentary
-  const fetchMcCommentary = async (winnerName: string, prizeTitle: string) => {
-    setCommentaryLoading(true);
-    setMcCommentary("");
-    try {
-      const response = await fetch("/api/mc-hype", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          winnerName: winnerName,
-          prizeTitle: prizeTitle,
-          characterName: "MC Kaydee",
-          characterRole: "The Golden Voice & Hype Leader"
-        })
+    const unsub = onSnapshot(collection(db, "tickets"), (snapshot) => {
+      const list: TicketData[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() } as TicketData);
       });
-      const data = await response.json();
-      if (data.success && data.commentary) {
-        setMcCommentary(data.commentary);
-        setIsAiPowered(true);
-      } else {
-        fallbackCommentary(winnerName, prizeTitle);
-      }
-    } catch (e) {
-      console.warn("Proxy api offline, falling back locally.", e);
-      fallbackCommentary(winnerName, prizeTitle);
-    } finally {
-      setCommentaryLoading(false);
-    }
-  };
+      setTickets(list);
+    }, (error) => {
+      console.error("Tickets listener fail:", error);
+    });
+    return () => unsub();
+  }, []);
 
-  const fallbackCommentary = (winnerName: string, prizeTitle: string) => {
+  // Real-time Shared Drawing Watcher
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, "config", "drawState"), async (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const { activeSpinId, isRolling: serverIsRolling, winnerId, prizeTitle, prizeId } = data;
+
+      if (serverIsRolling && activeSpinId && activeSpinId !== lastSpinId) {
+        setLastSpinId(activeSpinId);
+
+        // Map target prize locally
+        const targetPrize = prizes.find(p => p.id === prizeId) || { id: prizeId, title: prizeTitle, remaining: 1 } as any;
+        setSelectedPrize(targetPrize);
+
+        // Run coordinate local deceleration simulation
+        triggerLocalSpinSeq(winnerId, targetPrize, activeSpinId);
+      }
+    }, (error) => {
+      console.warn("drawState observer subscription denied or restricted:", error);
+    });
+    return () => unsub();
+  }, [prizes, lastSpinId, tickets, isAdmin]);
+
+  const fallbackHype = (winnerName: string, prizeTitle: string) => {
     const templates = [
-      "Oya make some noise! {winner} has won the {prize}! Run and lock this stash in your Cowrywise app immediately, Lekki monkeys are watching!",
-      "Mad o! Double congratulations to {winner} for bagging the {prize}! Your savings discipline is paying off already!",
-      "Compound interest standard! {winner} is walking home with {prize}! Lock this stash now on Cowrywise!",
+      "BOOM! {winner} just secured `{prize}`! LAGOS HANGOUT HAS ERUPTED!",
+      "INCREDIBLE SCENE! `{prize}` crowned directly to {winner}! Double your hustle!",
+      "GIVE THEM ROOM! {winner} is walking home with `{prize}` under their belt!",
+      "HOLY MOUNT! Congratulate {winner}! The raffle gods have favored you today!"
     ];
     const picked = templates[Math.floor(Math.random() * templates.length)];
     setMcCommentary(picked.replace("{winner}", winnerName).replace("{prize}", prizeTitle));
     setIsAiPowered(false);
   };
 
-  // Live Draw Sequence
-  const handleStartDraw = async () => {
-    if (isRolling || !selectedPrize) return;
-
-    // Filter available tickets (drawn: false)
-    const eligibleTickets = tickets.filter((tk) => !tk.drawn);
-
-    if (eligibleTickets.length === 0) {
-      alert("⚠️ RULING ERROR: There are no eligible, undrawn tickets in the active pool database!");
-      return;
+  const fetchMcCommentary = async (winnerName: string, prizeTitle: string) => {
+    setCommentaryLoading(true);
+    try {
+      const res = await fetch("/api/mc-hype", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ winnerName, prizeTitle })
+      });
+      const data = await res.json();
+      if (data.success && data.hype) {
+        setMcCommentary(data.hype);
+        setIsAiPowered(true);
+      } else {
+        throw new Error();
+      }
+    } catch {
+      fallbackHype(winnerName, prizeTitle);
+    } finally {
+      setCommentaryLoading(false);
     }
+  };
 
+  // Coordinated Local Spin Animation Execution
+  const triggerLocalSpinSeq = async (winnerId: string, spPrize: any, spinId: string) => {
     setIsRolling(true);
     setShowCelebration(false);
     setWinnerTicket(null);
-    setMcCommentary("HOLD YOUR BREATH! DRUMROLL COMMENCING... PLS PRAY FOR YOUR STASH!");
+    setMcCommentary("HOLD YOUR BREATH! COORDINATED MOTION INITIALIZED... SECURING TARGET!");
 
-    // 1. Select target winner immediately in background
-    const randomIndex = Math.floor(Math.random() * eligibleTickets.length);
-    const targetWinner = eligibleTickets[randomIndex];
+    // Search target occupant ticket
+    let targetWinner = tickets.find((tk) => tk.id === winnerId);
 
-    // 2. Cinematic spin variables
-    const duration = 3500; // total duration: 3.5 seconds
+    // Dynamic fallback fetch straight from database in case indexing is behind
+    if (!targetWinner) {
+      try {
+        const ticketSnap = await getDocs(collection(db, "tickets"));
+        const tempTickets: TicketData[] = [];
+        ticketSnap.forEach((d) => {
+          tempTickets.push({ id: d.id, ...d.data() } as TicketData);
+        });
+        targetWinner = tempTickets.find((tk) => tk.id === winnerId);
+      } catch (err) {
+        console.warn("Direct query fallback failed:", err);
+      }
+    }
+
+    if (!targetWinner) {
+      targetWinner = {
+        id: winnerId,
+        ticketNumber: parseInt(winnerId.replace(/\D/g, "")) || Math.floor(Math.random() * 100),
+        name: winnerId === "guest_sim_id" ? "Preseeded Holder" : "LCC Attendee Holder",
+        contact: "Active Cohort Participant",
+        assignedAt: new Date().toISOString(),
+        drawn: true
+      };
+    }
+
+    // Kinematic velocity loop properties
+    const duration = 3500;
     const startTime = Date.now();
-    const initialDelay = 15; // fast start velocity
+    const initialDelay = 15;
     let sequentialCycleNum = 0;
 
     const runReel = async () => {
       const elapsed = Date.now() - startTime;
 
       if (elapsed >= duration) {
-        // --- STOPPING REEL: Land precisely on the target winner ---
-        setCurrentDisplayNum(targetWinner.ticketNumber);
-        setWinnerTicket(targetWinner);
+        // Halt on designated synchronized candidate
+        setCurrentDisplayNum(targetWinner!.ticketNumber);
+        setWinnerTicket(targetWinner!);
         setIsRolling(false);
         setShowCelebration(true);
 
-        // 3. Mark winner as drawn in Firestore
-        try {
-          const docRef = doc(db, "tickets", targetWinner.id);
-          await updateDoc(docRef, {
-            drawn: true,
-            drawnAt: new Date().toISOString(),
-            prizeTitle: selectedPrize.title
-          });
+        // Visually clear prize count
+        setPrizes((prev) =>
+          prev.map((p) =>
+            p.id === spPrize.id ? { ...p, remaining: Math.max(0, p.remaining - 1) } : p
+          )
+        );
 
-          // Decrement current local prizes stock
-          setPrizes((prev) =>
-            prev.map((p) =>
-              p.id === selectedPrize.id ? { ...p, remaining: Math.max(0, p.remaining - 1) } : p
-            )
-          );
-        } catch (e) {
-          console.error("Firestore update failed:", e);
-          handleFirestoreError(e, OperationType.UPDATE, `tickets/${targetWinner.id}`);
+        // WRITE-BACK SEQUENCE: Only administrative clients commit state updates to Firestore to lock database concurrency!
+        if (isAdmin) {
+          try {
+            // Update ticket drawn category
+            await setDoc(doc(db, "tickets", targetWinner!.id), {
+              drawn: true,
+              drawnAt: new Date().toISOString(),
+              prizeTitle: spPrize.title
+            }, { merge: true });
+
+            // Seed spin log audit entry
+            await setDoc(doc(db, "spins", spinId), {
+              timestamp: new Date().toISOString(),
+              prizeTitle: spPrize.title,
+              winnerTicketNumber: targetWinner!.ticketNumber,
+              winnerName: targetWinner!.name,
+              status: "valid"
+            });
+
+            // Re-set master draw state
+            await setDoc(doc(db, "config", "drawState"), {
+              isRolling: false
+            }, { merge: true });
+
+          } catch (writeErr) {
+            console.error("Administrative logs write-back failed:", writeErr);
+          }
         }
 
-        // 4. Fetch MC Commentary shouts
-        await fetchMcCommentary(targetWinner.name, selectedPrize.title);
+        // Generate commentary shouts
+        await fetchMcCommentary(targetWinner!.name, spPrize.title);
 
       } else {
-        // --- ROLLING: calculate visual exponential decay progress ---
         const progress = elapsed / duration;
         const currentDelay = initialDelay + Math.pow(progress, 3) * 550;
-
-        // Sequence cycle sequential numbers (0 to 400)
-        sequentialCycleNum = (sequentialCycleNum + 7) % 401; // offsets of 7 cycle rapidly
+        sequentialCycleNum = (sequentialCycleNum + 7) % 401;
         setCurrentDisplayNum(sequentialCycleNum);
 
         setTimeout(runReel, currentDelay);
       }
     };
 
-    // Begin recursion loop
     runReel();
+  };
+
+  // Administration-Only spin launcher
+  const handleStartDraw = async () => {
+    if (isRolling || !selectedPrize) return;
+
+    if (!isAdmin) {
+      alert("❌ SECURITY ACCESS RESTRICTED: Only authorized administrators can start standard spins.");
+      return;
+    }
+
+    // Filter undrawn candidates
+    const eligibleTickets = tickets.filter((tk) => !tk.drawn);
+
+    if (eligibleTickets.length === 0) {
+      alert("⚠️ DATA ERROR: Standard Registry is empty or has been entirely drawn! No valid candidates left.");
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * eligibleTickets.length);
+    const targetWinner = eligibleTickets[randomIndex];
+
+    const activeSpinId = `SPIN-${Math.random().toString(36).substring(2, 10).toUpperCase()}-${Date.now().toString().substring(8)}`;
+
+    try {
+      // Stream state block to database to trigger all spectator channels simultaneously
+      await setDoc(doc(db, "config", "drawState"), {
+        activeSpinId,
+        isRolling: true,
+        winnerId: targetWinner.id,
+        prizeTitle: selectedPrize.title,
+        prizeId: selectedPrize.id,
+        timestamp: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error("Firestore coordination triggers rejected:", err);
+      handleFirestoreError(err, OperationType.WRITE, "config/drawState");
+    }
   };
 
   const handleResetPrizesStock = () => {
@@ -204,125 +293,144 @@ export default function LiveDraw() {
   };
 
   return (
-    <div className="min-h-screen bg-[#000000] text-[#E2E8F0] flex flex-col justify-between select-none">
+    <div className="min-h-screen bg-[#000000] text-[#E2E8F0] flex flex-col justify-between select-none pb-24 md:pb-6">
       
-      {/* Dynamic Topbar Header with built-in Auth check */}
+      {/* Dynamic Topbar */}
       <Topbar />
 
-      {/* Primary Cinematic Content Stage */}
+      {/* Main Cinematic Content Stage */}
       <main className="flex-1 flex flex-col items-center justify-center p-4 py-8 md:py-12 max-w-4xl mx-auto w-full space-y-8 z-10">
         
-        {/* Active Target Prize Banner card */}
+        {/* Active Prize Tag */}
         {selectedPrize && (
-          <div className="inline-flex flex-col items-center space-y-1.5 animate-fade-in">
+          <div className="inline-flex flex-col items-center space-y-1.5 animate-fade-in text-center">
             <span className="text-[10px] font-mono uppercase tracking-widest text-[#9B9691] font-black">
               ACTIVE RAFFLE STASH
             </span>
-            <div className="bg-[#141211] border border-[#23211F] rounded-2xl shadow-tactile-md px-6 py-3 flex items-center gap-3 animate-neon-glow">
-              <Trophy size={16} className="text-[#10B981] fill-[#10B981]" />
-              <h3 className="text-sm font-heading font-black text-white uppercase tracking-wider">
-                {selectedPrize.title}
-              </h3>
+            <div className="bg-[#141211] border border-[#23211F] px-5 py-2.5 rounded-full flex items-center gap-2">
+              <Award size={15} className="text-[#10B981]" />
+              <p className="text-white text-xs font-heading font-black tracking-wide uppercase">
+                {selectedPrize.title} ({selectedPrize.remaining} / {selectedPrize.count} LEFT)
+              </p>
             </div>
           </div>
         )}
 
-        {/* Cinematic 3D Particle Spinning Sphere */}
-        <div className="relative flex items-center justify-center w-full">
-          {/* Edge Ambient shadow glowing aura */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-[#0066FF]/8 blur-[70px] rounded-full pointer-events-none"></div>
+        {/* Cinematic Display Core Section */}
+        <div className="relative w-full flex items-center justify-center min-h-[300px]">
+          
+          {/* Futuristic Glowing Backdrop Circle */}
+          <div className="absolute w-72 h-72 rounded-full bg-emerald-500/5 blur-[80px] z-0 animate-pulse"></div>
 
-          <ParticleSphere3D
-            isRolling={isRolling}
-            currentDisplayNum={currentDisplayNum}
-            winnerTicketNumber={winnerTicket ? winnerTicket.ticketNumber : null}
-          />
+          {/* Interactive Particle Sphere Canvas background */}
+          <div className="absolute inset-0 flex items-center justify-center z-0 scale-75 overflow-hidden">
+            <ParticleSphere3D
+              isRolling={isRolling}
+              currentDisplayNum={currentDisplayNum}
+              winnerTicketNumber={winnerTicket ? winnerTicket.ticketNumber : null}
+            />
+          </div>
+
+          {/* Real-time Rolling Number Ring */}
+          <div className="relative z-10 flex flex-col items-center space-y-1 text-center">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-[#9B9691] font-black tracking-[0.2em] animate-pulse">
+              SECTOR REEL COWRYWISE
+            </span>
+            <h1 className="text-8xl md:text-9xl font-display font-black text-white tracking-widest tabular-nums select-none drop-shadow-2xl">
+              {currentDisplayNum.toString().padStart(3, "0")}
+            </h1>
+            <p className="text-[10px] font-mono text-[#10B981] font-black uppercase tracking-widest">
+              LAGOS AMBASSADORS CODE Registry
+            </p>
+          </div>
+
         </div>
 
         {/* Large Spin Execution Trigger Button */}
-        <div className="w-full text-center">
+        <div className="w-full text-center space-y-2">
           <button
             onClick={handleStartDraw}
             disabled={isRolling || !selectedPrize}
-            className="group cursor-pointer bg-[#0066FF] hover:bg-[#0055DD] text-white font-heading font-black text-xs uppercase tracking-widest px-14 py-4.5 rounded-2xl border-2 border-[#0066FF] shadow-tactile-lg active:translate-y-0.5 transition-all disabled:opacity-40 disabled:pointer-events-none"
+            className={`group cursor-pointer font-heading font-black text-xs uppercase tracking-widest px-14 py-4.5 rounded-2xl border-2 shadow-tactile-lg active:translate-y-0.5 transition-all disabled:opacity-50 ${
+              !isAdmin 
+                ? "bg-[#0A0908] border-[#23211F] text-slate-500 hover:text-slate-400 cursor-not-allowed" 
+                : "bg-[#0066FF] hover:bg-[#0055DD] text-white border-[#0066FF]"
+            }`}
           >
             {isRolling ? (
               <span className="flex items-center justify-center gap-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] animate-ping"></span>
                 POOLED GENERATION...
+              </span>
+            ) : !isAdmin ? (
+              <span className="flex items-center justify-center gap-2">
+                🔒 ADMIN LOCK ACTIVE
               </span>
             ) : (
               <span className="flex items-center justify-center gap-3">
-                <Play size={14} fill="white" /> SPIN DECISION WHEEL
+                <Play size={14} fill="currentColor" /> SPIN DECISION WHEEL
               </span>
             )}
           </button>
+          
+          {!isAdmin && (
+            <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">
+              Accessible view only. Spins are coordinated in real-time by administrators.
+            </p>
+          )}
+        </div>
+
+        {/* Prize Selector Deck */}
+        <div className="w-full space-y-5">
+          <div className="flex items-center justify-between pb-2 border-b border-[#23211F]">
+            <p className="text-[10px] font-mono text-[#9B9691] uppercase tracking-widest font-black">
+              Select target prize category:
+            </p>
+            {isAdmin && (
+              <button
+                onClick={handleResetPrizesStock}
+                className="cursor-pointer text-[9px] font-mono text-slate-500 hover:text-red-400 uppercase transition-colors"
+              >
+                Reset Stock Count
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            {prizes.map((p) => {
+              const isSelected = selectedPrize?.id === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => !isRolling && setSelectedPrize(p)}
+                  disabled={isRolling}
+                  className={`cursor-pointer px-4.5 py-4 rounded-xl border text-[10px] font-heading font-black tracking-wider transition-all uppercase text-center flex flex-col justify-between gap-1 ${
+                    isSelected
+                      ? "border-[#0066FF] bg-[#0066FF]/10 text-[#0066FF] font-black"
+                      : "border-[#23211F] bg-[#0B0A09] text-[#9B9691] hover:border-[#23211F] hover:bg-[#141211] hover:text-white"
+                  }`}
+                >
+                  <span className="truncate w-full">{p.title}</span>
+                  <span className="text-[8px] font-mono text-slate-500 block uppercase">
+                    {p.remaining} / {p.count} LEFT
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
       </main>
 
-      {/* MC Commentary Ambient Tip Bar (Dark Mode) */}
-      <div className="px-4 pb-6 w-full">
-        <footer className="bg-[#141211] border border-[#23211F] p-4 rounded-2xl max-w-2xl mx-auto w-full flex items-center gap-4 shadow-tactile-md">
-          <div className="w-10 h-10 rounded-xl bg-[#0B0A09] border border-[#23211F] flex items-center justify-center text-[#10B981] shrink-0">
-            <Volume2 size={18} className="animate-pulse" />
-          </div>
-          <div className="text-left flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[9px] font-mono tracking-widest text-[#10B981] uppercase font-bold">
-                MC STAGE MICROPHONE
-              </span>
-              {isAiPowered && (
-                <span className="text-[8px] bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/25 px-2 py-0.2 rounded uppercase font-mono font-bold">
-                  ✨ Gemini AI
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-[#E2E8F0] font-sans italic truncate">
-              "{mcCommentary}"
-            </p>
-          </div>
-        </footer>
-      </div>
-
-      {/* Available prizes grid selector shelves */}
-      <div className="w-full max-w-4xl mx-auto border-t border-[#23211F] bg-[#141211]/90 backdrop-blur-md py-5 flex flex-wrap items-center justify-center gap-2.5 px-4 z-10 shadow-sm">
-        <div className="w-full flex items-center justify-between px-3 mb-2">
-          <span className="text-[10px] font-mono text-[#9B9691] uppercase tracking-widest font-black">
-            SELECT DRAW TARGET CATEGORY
-          </span>
-        </div>
-        
-        {prizes.map((p) => {
-          const isSelected = selectedPrize?.id === p.id;
-          return (
-            <button
-              key={p.id}
-              onClick={() => !isRolling && setSelectedPrize(p)}
-              disabled={isRolling}
-              className={`cursor-pointer px-4 py-2 rounded-xl border text-[11px] font-bold tracking-wider transition-all uppercase ${
-                isSelected
-                  ? "border-[#0066FF] bg-[#0066FF]/15 text-[#0066FF] shadow-sm font-black"
-                  : "border-[#23211F] bg-[#0B0A09] text-[#9B9691] hover:border-[#1E1B19] hover:text-[#FFFFFF]"
-              }`}
-            >
-              {p.title}
-            </button>
-          );
-        })}
-      </div>
-
       {/* Cinematic Full-screen Victory Celebration Overlay */}
       {showCelebration && winnerTicket && (
-        <div className="fixed inset-0 bg-[#000000]/96 backdrop-blur-xl flex flex-col items-center justify-center z-50 p-6 animate-fade-in selection:bg-[#0066FF]/20">
+        <div className="fixed inset-0 bg-[#000000]/96 backdrop-blur-2xl flex flex-col items-center justify-center z-50 p-6 animate-fade-in selection:bg-[#0066FF]/20">
           
-          {/* Soft background ambient gradients */}
           <div className="fixed top-20 left-20 w-80 h-80 bg-[#10B981]/10 blur-[100px] rounded-full animate-pulse"></div>
           <div className="fixed bottom-20 right-20 w-80 h-80 bg-[#0066FF]/10 blur-[100px] rounded-full animate-pulse"></div>
 
           <div className="w-full max-w-2xl text-center space-y-10 z-10">
             
-            {/* Victory Badge */}
             <div className="inline-flex items-center gap-2 bg-[#10B981]/15 border border-[#10B981]/20 px-4 py-2 rounded-full animate-bounce">
               <Trophy size={16} className="text-[#10B981] animate-spin" />
               <span className="font-mono text-xs tracking-widest text-[#10B981] uppercase font-black">
@@ -330,14 +438,14 @@ export default function LiveDraw() {
               </span>
             </div>
 
-            {/* Winner Spotlight Card (Dark Base with Success Glow) */}
+            {/* Winner Spotlight Card */}
             <div className="bg-[#141211] border-2 border-[#10B981] p-10 md:p-12 rounded-3xl shadow-[0_0_50px_rgba(16,185,129,0.15)] max-w-xl mx-auto space-y-6 transform scale-105 duration-300">
               
               <div className="space-y-1">
                 <span className="text-xs font-mono text-[#9B9691] uppercase tracking-widest">
                   LUCKY WINNER DECLARED
                 </span>
-                <h1 className="text-4xl md:text-5xl font-heading font-black text-[#10B981] tracking-tight uppercase leading-none pt-2">
+                <h1 className="text-4xl md:text-5xl font-heading font-black text-[#10B981] tracking-tight uppercase leading-none pt-2 font-black">
                   {winnerTicket.name}
                 </h1>
                 <p className="text-xs font-mono text-white/70 uppercase tracking-widest pt-1">
@@ -347,11 +455,11 @@ export default function LiveDraw() {
 
               <div className="border-t border-[#23211F] pt-6 flex justify-around items-center gap-4 text-left">
                 
-                <div>
+                <div className="max-w-[150px]">
                   <span className="text-[10px] font-mono text-[#9B9691] uppercase tracking-wider block">
                     DRAWN PRIZE
                   </span>
-                  <span className="text-sm font-heading font-semibold text-white uppercase tracking-wide">
+                  <span className="text-xs font-heading font-extrabold text-white uppercase tracking-wide">
                     {selectedPrize?.title}
                   </span>
                 </div>
@@ -360,7 +468,7 @@ export default function LiveDraw() {
                   <span className="text-[10px] font-mono text-[#9B9691] uppercase tracking-wider block">
                     TICKET POOL ID
                   </span>
-                  <span className="text-4xl font-display font-black text-white tracking-widest leading-none block pt-1">
+                  <span className="text-4xl font-display font-black text-white tracking-widest leading-none block pt-1 font-black">
                     #{winnerTicket.ticketNumber.toString().padStart(3, "0")}
                   </span>
                 </div>
@@ -369,7 +477,7 @@ export default function LiveDraw() {
 
             </div>
 
-            {/* Soundboard commentary line highlighting (Dark Card) */}
+            {/* Soundboard commentary line */}
             <div className="bg-[#141211] border border-[#23211F] p-6 rounded-2xl max-w-lg mx-auto text-center space-y-2 shadow-tactile-md">
               <p className="text-[9px] font-mono text-[#10B981] tracking-widest uppercase font-bold">
                 📢 MC COMMENTARY SHOUTOUT
@@ -383,7 +491,7 @@ export default function LiveDraw() {
               )}
             </div>
 
-            {/* Dismissal Action button */}
+            {/* Dismissal button */}
             <div className="pt-2">
               <button
                 onClick={() => setShowCelebration(false)}

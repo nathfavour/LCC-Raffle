@@ -30,7 +30,7 @@ service cloud.firestore {
 
     function isValidTicket(data) {
       return data.keys().hasAll(['ticketNumber', 'name', 'contact', 'assignedAt', 'drawn']) &&
-             data.keys().size() <= 7 &&
+             data.keys().size() <= 8 &&
              data.ticketNumber is number &&
              data.ticketNumber >= 0 &&
              data.ticketNumber <= 400 &&
@@ -44,8 +44,18 @@ service cloud.firestore {
              (!('prizeTitle' in data) || (data.prizeTitle is string && data.prizeTitle.size() < 200));
     }
 
+    function isValidSpin(data) {
+      return data.keys().hasAll(['timestamp', 'prizeTitle', 'winnerTicketNumber', 'winnerName', 'status']) &&
+             data.keys().size() <= 8 &&
+             data.timestamp is string &&
+             data.prizeTitle is string &&
+             data.winnerTicketNumber is number &&
+             data.winnerName is string &&
+             data.status is string;
+    }
+
     // 2. Auth Config Documents
-    match /config/auth {
+    match /config/{configId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -53,8 +63,16 @@ service cloud.firestore {
     // 3. Tickets Matching (Strict Bounded 0-400, deterministic structure)
     match /tickets/{ticketNumber} {
       allow read: if true;
-      allow create: if isAdmin() && isValidTicket(request.resource.data);
+      allow create: if isValidTicket(request.resource.data);
       allow update: if isAdmin() && isValidTicket(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    // 4. Spin History Ledger (Admins only)
+    match /spins/{spinId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() && isValidSpin(request.resource.data);
+      allow update: if isAdmin() && isValidSpin(request.resource.data);
       allow delete: if isAdmin();
     }
   }
