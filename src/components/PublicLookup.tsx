@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Search, Trophy, Ticket, Wifi } from "lucide-react";
 import Topbar from "./Topbar";
 
@@ -35,6 +35,7 @@ export default function PublicLookup() {
       (error) => {
         console.error("Firestore loading failed:", error);
         setIsOnline(false);
+        handleFirestoreError(error, OperationType.GET, "tickets");
       }
     );
     return () => unsubscribe();

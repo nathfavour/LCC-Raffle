@@ -12,20 +12,26 @@ service cloud.firestore {
     }
 
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn() && (
+        request.auth.token.email_verified == true ||
+        request.auth.token.email == 'nathfavour02@gmail.com'
+      );
     }
 
-    // Checking if the verified user email exists in config/auth allowed_admins list
+    // Checking if the verified user email exists in config/auth allowed_admins list or is the bootstrapped admin
     function isAdmin() {
       return isEmailVerified() && (
-        request.auth.token.email in get(/databases/$(database)/documents/config/auth).data.allowed_admins
+        request.auth.token.email == 'nathfavour02@gmail.com' || (
+          exists(/databases/$(database)/documents/config/auth) &&
+          request.auth.token.email in get(/databases/$(database)/documents/config/auth).data.allowed_admins
+        )
       );
     }
 
     function isValidTicket(data) {
       return data.keys().hasAll(['ticketNumber', 'name', 'contact', 'assignedAt', 'drawn']) &&
              data.keys().size() <= 7 &&
-             data.ticketNumber is int &&
+             data.ticketNumber is number &&
              data.ticketNumber >= 0 &&
              data.ticketNumber <= 400 &&
              data.name is string &&
@@ -34,17 +40,14 @@ service cloud.firestore {
              data.contact is string &&
              data.contact.size() > 0 &&
              data.contact.size() < 200 &&
-             data.drawn is bool;
+             data.drawn is bool &&
+             (!('prizeTitle' in data) || (data.prizeTitle is string && data.prizeTitle.size() < 200));
     }
 
     // 2. Auth Config Documents
     match /config/auth {
       allow read: if true;
-      allow write: if isEmailVerified() && (
-        resource == null || 
-        request.auth.token.email in request.resource.data.allowed_admins ||
-        request.auth.token.email in resource.data.allowed_admins
-      );
+      allow write: if isAdmin();
     }
 
     // 3. Tickets Matching (Strict Bounded 0-400, deterministic structure)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { INITIAL_PRIZES } from "../data";
 import { Trophy, Play, Volume2, Sparkles, Award } from "lucide-react";
 import Topbar from "./Topbar";
@@ -59,6 +59,8 @@ export default function LiveDraw() {
         ticketList.push({ id: doc.id, ...doc.data() } as TicketData);
       });
       setTickets(ticketList);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "tickets");
     });
     return () => unsubscribe();
   }, []);
@@ -165,6 +167,7 @@ export default function LiveDraw() {
           );
         } catch (e) {
           console.error("Firestore update failed:", e);
+          handleFirestoreError(e, OperationType.UPDATE, `tickets/${targetWinner.id}`);
         }
 
         // 4. Fetch MC Commentary shouts

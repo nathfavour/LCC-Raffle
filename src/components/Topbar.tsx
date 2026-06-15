@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
-import { auth, db } from "../lib/firebase";
+import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { ShieldCheck, LogIn, LogOut, Ticket, Play, Award, Loader2 } from "lucide-react";
 
 export default function Topbar() {
@@ -44,6 +44,7 @@ export default function Topbar() {
                   }, { merge: true });
                 } catch (e) {
                   console.warn("Auto-rule bootstrap bypassed/declined on database permission boundaries.", e);
+                  handleFirestoreError(e, OperationType.WRITE, "config/auth");
                 }
               }
             } else {

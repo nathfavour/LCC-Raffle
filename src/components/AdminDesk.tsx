@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { collection, doc, deleteDoc, getDocs, onSnapshot, runTransaction, setDoc } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
-import { db, auth } from "../lib/firebase";
+import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
 import { ShieldCheck, UserPlus, Copy, Check, Trash2, RefreshCw, CheckCircle, Ticket, Phone, User, AlertTriangle, LogIn, Lock } from "lucide-react";
 import Topbar from "./Topbar";
 
@@ -85,6 +85,8 @@ export default function AdminDesk() {
       });
       list.sort((a, b) => a.ticketNumber - b.ticketNumber);
       setTickets(list);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, "tickets");
     });
     return () => unsub();
   }, [isAdmin]);
@@ -119,48 +121,64 @@ export default function AdminDesk() {
 
     setIsSubmitting(true);
     try {
-      // Execute firestore-backed transaction rules
-      const chosenNumber = await runTransaction(db, async (transaction) => {
-        const ticketColRef = collection(db, "tickets");
-        const snapshot = await getDocs(ticketColRef);
-        
-        const occupied = new Set<number>();
-        snapshot.forEach((docSnap) => {
-          const num = docSnap.data().ticketNumber;
-          if (typeof num === "number") {
-            occupied.add(num);
-          }
-        });
+      // 1. Fetch current occupied ticket ids outside the transaction to prevent non-transactional collection reads inside the transaction
+      let snapshot;
+      try {
+        snapshot = await getDocs(collection(db, "tickets"));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, "tickets");
+        return;
+      }
 
-        // Calculate unoccupied ranges between 0-400
-        const available: number[] = [];
-        for (let i = 0; i <= 400; i++) {
-          if (!occupied.has(i)) {
-            available.push(i);
-          }
+      const occupied = new Set<number>();
+      snapshot.forEach((docSnap) => {
+        const num = docSnap.data().ticketNumber;
+        if (typeof num === "number") {
+          occupied.add(num);
         }
-
-        if (available.length === 0) {
-          throw new Error("Raffle Registry Limit Reached: All 401 ticket seats on this pool are completely booked.");
-        }
-
-        // Standard random distribution index allocation
-        const randomIndex = Math.floor(Math.random() * available.length);
-        const chosen = available[randomIndex];
-
-        // Safe commit reference
-        const docRef = doc(db, "tickets", chosen.toString());
-        transaction.set(docRef, {
-          ticketNumber: chosen,
-          name: fullName.trim(),
-          contact: contactInfo.trim(),
-          assignedAt: new Date().toISOString(),
-          drawn: false,
-          prizeTitle: ""
-        });
-
-        return chosen;
       });
+
+      // Calculate unoccupied ranges between 0-400
+      const available: number[] = [];
+      for (let i = 0; i <= 400; i++) {
+        if (!occupied.has(i)) {
+          available.push(i);
+        }
+      }
+
+      if (available.length === 0) {
+        throw new Error("Raffle Registry Limit Reached: All 401 ticket seats on this pool are completely booked.");
+      }
+
+      // Standard random distribution index allocation
+      const randomIndex = Math.floor(Math.random() * available.length);
+      const chosen = available[randomIndex];
+
+      // 2. Perform compliant transaction to set/write after checking chosen document reference
+      let chosenNumber;
+      try {
+        chosenNumber = await runTransaction(db, async (transaction) => {
+          const docRef = doc(db, "tickets", chosen.toString());
+          const docSnap = await transaction.get(docRef);
+          if (docSnap.exists()) {
+            throw new Error("Concurrency collision: This seat is registered by another user. Please retry registration.");
+          }
+
+          transaction.set(docRef, {
+            ticketNumber: chosen,
+            name: fullName.trim(),
+            contact: contactInfo.trim(),
+            assignedAt: new Date().toISOString(),
+            drawn: false,
+            prizeTitle: ""
+          });
+
+          return chosen;
+        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `tickets/${chosen}`);
+        return;
+      }
 
       // Show success modal overlay
       setSuccessModal({
@@ -197,8 +215,7 @@ export default function AdminDesk() {
     try {
       await deleteDoc(doc(db, "tickets", docId));
     } catch (err) {
-      console.error(err);
-      alert("Retract action failed on database restrictions.");
+      handleFirestoreError(err, OperationType.DELETE, `tickets/${docId}`);
     }
   };
 
@@ -223,7 +240,14 @@ export default function AdminDesk() {
       ];
 
       // Identify occupied slots
-      const getFreshData = await getDocs(collection(db, "tickets"));
+      let getFreshData;
+      try {
+        getFreshData = await getDocs(collection(db, "tickets"));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, "tickets");
+        return;
+      }
+
       const occupied = new Set<number>();
       getFreshData.forEach((d) => {
         const num = d.data().ticketNumber;
@@ -237,14 +261,18 @@ export default function AdminDesk() {
 
       for (let j = 0; j < Math.min(mockHolders.length, availablePool.length); j++) {
         const chosenNum = availablePool[j];
-        await setDoc(doc(db, "tickets", chosenNum.toString()), {
-          ticketNumber: chosenNum,
-          name: mockHolders[j].name,
-          contact: mockHolders[j].contact,
-          assignedAt: new Date().toISOString(),
-          drawn: false,
-          prizeTitle: ""
-        });
+        try {
+          await setDoc(doc(db, "tickets", chosenNum.toString()), {
+            ticketNumber: chosenNum,
+            name: mockHolders[j].name,
+            contact: mockHolders[j].contact,
+            assignedAt: new Date().toISOString(),
+            drawn: false,
+            prizeTitle: ""
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `tickets/${chosenNum}`);
+        }
       }
     } catch (e) {
       console.error("Preseeding failed:", e);
@@ -257,10 +285,20 @@ export default function AdminDesk() {
     if (!window.confirm("CRITICAL WARNING: Are you completely certain you want to wipeout the raffle registries? All active attendees will be deleted!")) return;
     setIsSubmitting(true);
     try {
-      const qs = await getDocs(collection(db, "tickets"));
+      let qs;
+      try {
+        qs = await getDocs(collection(db, "tickets"));
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, "tickets");
+        return;
+      }
       const p = [];
       qs.forEach((d) => {
-        p.push(deleteDoc(doc(db, "tickets", d.id)));
+        p.push(
+          deleteDoc(doc(db, "tickets", d.id)).catch((err) => {
+            handleFirestoreError(err, OperationType.DELETE, `tickets/${d.id}`);
+          })
+        );
       });
       await Promise.all(p);
     } catch (e) {
