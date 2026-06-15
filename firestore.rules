@@ -30,7 +30,7 @@ service cloud.firestore {
 
     function isValidTicket(data) {
       return data.keys().hasAll(['ticketNumber', 'name', 'contact', 'assignedAt', 'drawn']) &&
-             data.keys().size() <= 8 &&
+             data.keys().size() <= 12 &&
              data.ticketNumber is number &&
              data.ticketNumber >= 0 &&
              data.ticketNumber <= 400 &&
@@ -46,7 +46,7 @@ service cloud.firestore {
 
     function isValidSpin(data) {
       return data.keys().hasAll(['timestamp', 'prizeTitle', 'winnerTicketNumber', 'winnerName', 'status']) &&
-             data.keys().size() <= 8 &&
+             data.keys().size() <= 12 &&
              data.timestamp is string &&
              data.prizeTitle is string &&
              data.winnerTicketNumber is number &&
