@@ -23,6 +23,22 @@ export default function HomeGenerator() {
   const [errorText, setErrorText] = useState("");
   const [isFresh, setIsFresh] = useState(false);
 
+  // Real-time listener for ALL tickets to check duplicates instantly on typing
+  const [allTickets, setAllTickets] = useState<TicketData[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, "tickets"), (snapshot) => {
+      const list: TicketData[] = [];
+      snapshot.forEach((docRef) => {
+        list.push({ id: docRef.id, ...docRef.data() } as TicketData);
+      });
+      setAllTickets(list);
+    }, (err) => {
+      console.warn("Could not load real-time tickets for background validation", err);
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Administrative spotlight banner listener
   const [spotlightedWinners, setSpotlightedWinners] = useState<TicketData[]>([]);
 
@@ -380,6 +396,13 @@ export default function HomeGenerator() {
     setErrorText("");
   };
 
+  // Instantly evaluate typing for duplicates cross-checking in real-time against pool
+  const normalizedWhatsapp = cleanFormatContact(whatsapp);
+  const matchedTicket = (normalizedWhatsapp.length === 11 && normalizedWhatsapp.startsWith("0"))
+    ? allTickets.find((tk) => cleanFormatContact(tk.contact || "") === normalizedWhatsapp)
+    : null;
+  const isDuplicate = !!matchedTicket;
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 md:py-12 space-y-8 pb-24">
       
@@ -463,9 +486,24 @@ export default function HomeGenerator() {
                   className="w-full bg-[#0B0A09] border-2 border-[#23211F] focus:border-[#0066FF] hover:border-[#1E1B19] rounded-xl py-3.5 pl-11 pr-4 text-sm text-white placeholder-slate-700 font-display transition-all focus:outline-none"
                 />
               </div>
-              <p className="text-[10px] text-slate-600 mt-1.5 leading-normal">
-                Strict single allocation verified. Entering an existing WhatsApp will instantly retrieve your verified seat!
-              </p>
+              
+              {isDuplicate && matchedTicket ? (
+                <div className="mt-2.5 bg-amber-950/20 border border-amber-500/25 text-amber-400 p-3.5 rounded-xl text-[11px] font-mono leading-relaxed flex items-start gap-2.5 animate-pulse">
+                  <ShieldAlert size={14} className="shrink-0 mt-0.5 text-amber-500" />
+                  <div>
+                    <span className="font-black text-amber-500 block uppercase tracking-wider text-[10px]">
+                      this Whatsapp number already registered
+                    </span>
+                    <span className="opacity-90 block mt-1">
+                      Associated with LCC Lead/Participant: <b className="text-white italic">{matchedTicket.name}</b> (Ticket: <b className="text-[#0066FF] font-black">#{matchedTicket.ticketNumber.toString().padStart(3, "0")}</b>). Click "Retrieve Registered Badge" to load.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-600 mt-1.5 leading-normal">
+                  Strict single allocation verified. Entering an existing WhatsApp will instantly retrieve your verified seat!
+                </p>
+              )}
             </div>
 
             <div>
@@ -496,11 +534,24 @@ export default function HomeGenerator() {
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isDuplicate}
               className="w-full cursor-pointer bg-[#0066FF] hover:bg-[#0055DD] text-white font-heading font-black text-xs uppercase tracking-widest py-4.5 rounded-2xl border-2 border-[#0066FF] shadow-tactile-md transition-all active:translate-y-0.5 disabled:opacity-40"
             >
               {isSubmitting ? "SYNCING LEDGER..." : "GENERATE MY BADGE"}
             </button>
+
+            {isDuplicate && matchedTicket && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatedTicket(matchedTicket);
+                  setIsFresh(false);
+                }}
+                className="w-full cursor-pointer bg-[#10B981] hover:bg-[#0ea271] text-black font-heading font-black text-xs uppercase tracking-widest py-4.5 rounded-2xl border-2 border-[#10B981] shadow-tactile-md transition-all active:translate-y-0.5 flex items-center justify-center gap-2 mt-2"
+              >
+                <CheckCircle size={14} /> RETRIEVE REGISTERED BADGE
+              </button>
+            )}
           </form>
 
         </div>
