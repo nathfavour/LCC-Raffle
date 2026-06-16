@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { Search, Trophy, Ticket, Wifi, ArrowLeft, User } from "lucide-react";
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { Search, Trophy, Ticket, Wifi, ArrowLeft, User, MoreVertical, Trash2, AlertTriangle, Loader2 } from "lucide-react";
 import Topbar from "./Topbar";
 
 interface TicketData {
@@ -19,12 +20,72 @@ export default function PublicLookup() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isOnline, setIsOnline] = useState(true);
 
+  // Administrative Check States
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  // Administrative Drawer Interactive Controls
+  const [showDrawer, setShowDrawer] = useState(false);
+  const [drawerTicket, setDrawerTicket] = useState<TicketData | null>(null);
+  const [activeTab, setActiveTab] = useState<"inspect" | "delete">("inspect");
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmedDel, setIsConfirmedDel] = useState(false);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
 
   // Showcase state for full-screen ticket layout
   const [selectedTicket, setSelectedTicket] = useState<TicketData | null>(null);
+
+  // Fetch administrator lookup status
+  useEffect(() => {
+    let isMounted = true;
+    async function checkAdminStatus() {
+      try {
+        const res = await fetch("/api/admins");
+        const data = await res.json();
+        if (data.success && data.admins && isMounted) {
+          const loadedAdmins = data.admins.map((e: string) => e.toLowerCase());
+          
+          onAuthStateChanged(auth, (currentUser) => {
+            if (!isMounted) return;
+            setUser(currentUser);
+            if (currentUser?.email) {
+              const matched = loadedAdmins.includes(currentUser.email.toLowerCase());
+              setIsAdmin(matched);
+            } else {
+              setIsAdmin(false);
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Could not load admins config on discovery:", err);
+      }
+    }
+    checkAdminStatus();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Handle immediate administrative delete action execution
+  const handleExecuteDelete = async () => {
+    if (!drawerTicket) return;
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, "tickets", drawerTicket.id));
+      setShowDrawer(false);
+      setIsConfirmedDel(false);
+      setDeleteConfirmInput("");
+    } catch (err) {
+      console.error("Failed to revoke/delete ticket allocation:", err);
+      handleFirestoreError(err, OperationType.DELETE, `tickets/${drawerTicket.id}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Read tickets in real-time from Firestore
   useEffect(() => {
@@ -191,14 +252,36 @@ export default function PublicLookup() {
                     )}
                   </div>
 
-                  {/* Lucky Ticket Badge (Strictly Bounded 0-400) */}
-                  <div className="shrink-0 flex flex-col items-center justify-center border-l border-[#23211F] pl-4 h-12 min-w-[70px]">
-                    <span className="text-[8px] font-mono text-[#9B9691] uppercase tracking-widest leading-none font-black">
-                      TICKET ID
-                    </span>
-                    <span className="text-2xl font-display font-black text-[#0066FF] leading-none mt-1 group-hover:text-white transition-colors">
-                      #{tk.ticketNumber.toString().padStart(3, "0")}
-                    </span>
+                  <div className="shrink-0 flex items-center gap-3">
+                    {/* Admin Options Icon Trigger for interactive Bottom Drawer */}
+                    {isAdmin && (
+                      <button
+                        id={`ticket-options-btn-${tk.ticketNumber}`}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDrawerTicket(tk);
+                          setActiveTab("inspect");
+                          setDeleteConfirmInput("");
+                          setIsConfirmedDel(false);
+                          setShowDrawer(true);
+                        }}
+                        className="p-2.5 text-[#9B9691] hover:text-white hover:bg-[#1E1B19] border border-[#23211F] hover:border-[#0066FF] rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                        title="Admin Controls"
+                      >
+                        <MoreVertical size={14} />
+                      </button>
+                    )}
+
+                    {/* Lucky Ticket Badge (Strictly Bounded 0-400) */}
+                    <div className="shrink-0 flex flex-col items-center justify-center border-l border-[#23211F] pl-4 h-12 min-w-[70px]">
+                      <span className="text-[8px] font-mono text-[#9B9691] uppercase tracking-widest leading-none font-black">
+                        TICKET ID
+                      </span>
+                      <span className="text-2xl font-display font-black text-[#0066FF] leading-none mt-1 group-hover:text-white transition-colors">
+                        #{tk.ticketNumber.toString().padStart(3, "0")}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))
@@ -362,6 +445,198 @@ export default function PublicLookup() {
               >
                 <ArrowLeft size={13} /> Cancel & return to lists
               </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Administrative Bottom Drawer */}
+      {showDrawer && drawerTicket && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center select-none">
+          {/* Backdrop */}
+          <div 
+            onClick={() => {
+              if (!isDeleting) {
+                setShowDrawer(false);
+                setIsConfirmedDel(false);
+                setDeleteConfirmInput("");
+              }
+            }}
+            className="absolute inset-0 bg-black/80 backdrop-blur-xs transition-opacity duration-300"
+          ></div>
+          
+          {/* Main Bottom Drawer Shell (max 50% height) */}
+          <div className="w-full max-w-xl bg-[#141211] border-t-2 border-l border-r border-[#23211F] rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.9)] z-10 flex flex-col max-h-[50vh] transition-all duration-300 transform translate-y-0 relative">
+            
+            {/* Drawer Drag handle indicator */}
+            <div className="w-12 h-1 bg-[#23211F] rounded-full mx-auto my-3 shrink-0"></div>
+
+            {/* Header section */}
+            <div className="px-6 pb-4 border-b border-[#23211F] flex items-center justify-between shrink-0">
+              <div className="text-left">
+                <span className="text-[9px] font-mono tracking-widest text-[#10B981] uppercase font-black">
+                  ADMINISTRATIVE SUITE
+                </span>
+                <h3 className="text-sm font-heading font-black text-white uppercase tracking-tight">
+                  Ticket Control • #{drawerTicket.ticketNumber.toString().padStart(3, "0")}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDrawer(false);
+                  setIsConfirmedDel(false);
+                  setDeleteConfirmInput("");
+                }}
+                className="p-1 px-3.5 bg-[#0B0A09] hover:bg-[#1E1B19] border border-[#23211F] rounded-xl text-[#9B9691] hover:text-white text-xs font-mono tracking-wider transition-colors cursor-pointer"
+              >
+                CLOSE
+              </button>
+            </div>
+
+            {/* Tabs for switching between Inspect and Delete */}
+            <div className="flex bg-[#0B0A09] border-b border-[#23211F] text-xs font-mono shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("inspect");
+                  setIsConfirmedDel(false);
+                  setDeleteConfirmInput("");
+                }}
+                className={`flex-1 py-3 text-center border-b-2 font-black transition-all cursor-pointer ${
+                  activeTab === "inspect"
+                    ? "border-[#0066FF] text-white bg-[#141211]"
+                    : "border-transparent text-[#9B9691] hover:text-white"
+                }`}
+              >
+                INSPECT DETAILS
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("delete");
+                }}
+                className={`flex-1 py-3 text-center border-b-2 font-black transition-all cursor-pointer ${
+                  activeTab === "delete"
+                    ? "border-red-650 text-red-500 bg-[#141211]"
+                    : "border-transparent text-[#9B9691] hover:text-red-400"
+                }`}
+              >
+                REVOKE / DELETE
+              </button>
+            </div>
+
+            {/* Scrollable area for content */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-4 text-left">
+              {activeTab === "inspect" ? (
+                <div className="space-y-3.5">
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="bg-[#0B0A09] p-3 rounded-xl border border-[#23211F]">
+                      <span className="text-[8px] font-mono text-[#9B9691] uppercase block">HOLDER NAME</span>
+                      <span className="text-xs font-bold text-white block truncate">{drawerTicket.name}</span>
+                    </div>
+                    <div className="bg-[#0B0A09] p-3 rounded-xl border border-[#23211F]">
+                      <span className="text-[8px] font-mono text-[#9B9691] uppercase block">CONTACT MOBILE</span>
+                      <span className="text-xs font-mono text-white block truncate">{drawerTicket.contact}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3.5">
+                    <div className="bg-[#0B0A09] p-3 rounded-xl border border-[#23211F]">
+                      <span className="text-[8px] font-mono text-[#9B9691] uppercase block">ASSIGNED TICKET ID</span>
+                      <span className="text-sm font-display font-black text-[#0066FF] block">
+                        #{drawerTicket.ticketNumber.toString().padStart(3, "0")}
+                      </span>
+                    </div>
+                    <div className="bg-[#0B0A09] p-3 rounded-xl border border-[#23211F]">
+                      <span className="text-[8px] font-mono text-[#9B9691] uppercase block">DATABASE REF ID</span>
+                      <span className="text-[9px] font-mono text-white block truncate select-text">{drawerTicket.id}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0B0A09] p-3 rounded-xl border border-[#23211F] space-y-1">
+                    <span className="text-[8px] font-mono text-[#9B9691] uppercase block">METADATA AUDIT LOG</span>
+                    <p className="text-[10px] font-mono text-slate-400">
+                      <b>Drawn Status:</b> {drawerTicket.drawn ? `🏆 WON (${drawerTicket.prizeTitle || "Raffle Gift"})` : "🎟️ Pending live spin"}
+                    </p>
+                    <p className="text-[10px] font-mono text-slate-400">
+                      <b>Registration Stamp:</b> {drawerTicket.assignedAt ? new Date(drawerTicket.assignedAt).toLocaleString() : "System Preseed"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* Delete operations flow */
+                <div className="space-y-4">
+                  {!isConfirmedDel ? (
+                    <div className="bg-red-950/15 border border-red-500/20 p-4.5 rounded-2xl space-y-3">
+                      <div className="flex gap-2.5 text-red-400">
+                        <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                        <div>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-red-500">
+                            WARNING: INITIATING TICKET REVOCATION
+                          </h4>
+                          <p className="text-[10px] opacity-85 mt-1 font-sans leading-relaxed">
+                            Deleting ticket <b className="text-white">#{drawerTicket.ticketNumber.toString().padStart(3, "0")}</b> belonging to <b className="text-white">{drawerTicket.name}</b> will immediately and permanently erase this allocation from the database. This action is irreversible.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsConfirmedDel(true)}
+                          className="w-full cursor-pointer bg-red-650 hover:bg-red-700 text-white font-heading font-black text-xs uppercase tracking-widest py-3 rounded-xl border border-red-600 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Trash2 size={13} /> CONFIRM TO PROCEED WITH DELETION
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Final step: Type "DELETE" string matching to execute */
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-mono text-amber-400 font-bold uppercase tracking-wider">
+                        FINAL STAGE SECURITY PIN-LOCK
+                      </p>
+                      <p className="text-xs text-slate-300 font-medium">
+                        To enforce strict alignment and prevent accidental deletion, type the word <b className="text-[#0066FF] font-black tracking-widest bg-[#0B0A09] px-2 py-0.5 rounded border border-[#23211F]">DELETE</b> below:
+                      </p>
+                      <input
+                        type="text"
+                        value={deleteConfirmInput}
+                        onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                        placeholder="Type DELETE to authenticate..."
+                        className="w-full bg-[#0B0A09] border border-[#23211F] focus:border-red-650 rounded-xl py-3.5 px-4 text-xs text-white placeholder-slate-700 font-mono focus:outline-none"
+                      />
+                      <div className="pt-2 flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsConfirmedDel(false);
+                            setDeleteConfirmInput("");
+                          }}
+                          className="flex-1 bg-[#0B0A09] hover:bg-[#1E1B19] border border-[#23211F] py-3 rounded-xl text-xs font-mono font-black text-[#9B9691] hover:text-white transition-all cursor-pointer text-center"
+                        >
+                          CANCEL
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deleteConfirmInput !== "DELETE" || isDeleting}
+                          onClick={handleExecuteDelete}
+                          className="flex-1 cursor-pointer bg-red-600 hover:bg-red-750 disabled:bg-red-950/20 disabled:text-red-900 disabled:border-transparent text-white font-heading font-black text-xs uppercase tracking-widest py-3 rounded-xl border border-red-650 transition-all flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <Loader2 size={12} className="animate-spin" /> EXECUTING...
+                            </>
+                          ) : (
+                            "DELETE PERMANENTLY"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
           </div>
