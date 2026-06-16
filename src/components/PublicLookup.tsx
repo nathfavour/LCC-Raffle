@@ -53,15 +53,40 @@ export default function PublicLookup() {
     setCurrentPage(1);
   }, [searchQuery]);
 
+  // Clean up and normalize WhatsApp number to standard 11 digits (0 + last 10 digits)
+  const cleanFormatContact = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      return "0" + digits.slice(-10);
+    }
+    return raw.trim();
+  };
+
   // Filter tickets dynamically as attendee types
   const filteredTickets = tickets.filter((tk) => {
     const term = searchQuery.toLowerCase().trim();
     if (term === "") return true; // Natural list display (all tickets match when no search is typed)
-    return (
+    
+    // Check standard matches first
+    const matchStandard = (
       tk.name.toLowerCase().includes(term) ||
       tk.contact.toLowerCase().includes(term) ||
       tk.ticketNumber.toString().includes(term)
     );
+
+    if (matchStandard) return true;
+
+    // Check fallback for phone number variants (e.g. searching 2349019775509 matches 09019775509)
+    const hasDigits = /\d/.test(searchQuery);
+    if (hasDigits) {
+      const normalizedQuery = cleanFormatContact(searchQuery);
+      const normalizedTkContact = cleanFormatContact(tk.contact || "");
+      if (normalizedTkContact.includes(normalizedQuery) || normalizedQuery.includes(normalizedTkContact)) {
+        return true;
+      }
+    }
+
+    return false;
   });
 
   // Pagination calculation

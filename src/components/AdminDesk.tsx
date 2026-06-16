@@ -16,6 +16,15 @@ interface TicketData {
   spotlight?: boolean;
 }
 
+// Clean up and normalize WhatsApp number to standard 11 digits (0 + last 10 digits)
+function cleanFormatContact(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length >= 10) {
+    return "0" + digits.slice(-10);
+  }
+  return raw.trim();
+}
+
 export default function AdminDesk() {
   const [user, setUser] = useState<any>(null);
   const [admins, setAdmins] = useState<string[]>([]);
@@ -163,6 +172,14 @@ export default function AdminDesk() {
     e.preventDefault();
     if (!fullName.trim() || !contactInfo.trim()) return;
 
+    const targetContact = cleanFormatContact(contactInfo);
+    const hasDigits = /\d/.test(contactInfo);
+
+    if (hasDigits && (targetContact.length !== 11 || !targetContact.startsWith("0"))) {
+      alert("Verification Error: Standard WhatsApp number should normalize to 11 digits starting with 0!");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // 1. Fetch current occupied ticket ids outside the transaction to prevent non-transactional collection reads inside the transaction
@@ -175,12 +192,24 @@ export default function AdminDesk() {
       }
 
       const occupied = new Set<number>();
+      let duplicateTicketName: string | null = null;
+
       snapshot.forEach((docSnap) => {
-        const num = docSnap.data().ticketNumber;
+        const data = docSnap.data();
+        const num = data.ticketNumber;
         if (typeof num === "number") {
           occupied.add(num);
         }
+
+        // Deep match comparison of normalized contacts to preserve integrity rules
+        if (cleanFormatContact(data.contact || "") === targetContact) {
+          duplicateTicketName = data.name;
+        }
       });
+
+      if (duplicateTicketName) {
+        throw new Error(`Integrity block: The WhatsApp contact "${targetContact}" is already registered under "${duplicateTicketName}"! Duplicate registrations are forbidden.`);
+      }
 
       // Calculate unoccupied ranges between 0-400
       const available: number[] = [];
@@ -211,7 +240,7 @@ export default function AdminDesk() {
           transaction.set(docRef, {
             ticketNumber: chosen,
             name: fullName.trim(),
-            contact: contactInfo.trim(),
+            contact: targetContact,
             assignedAt: new Date().toISOString(),
             drawn: false,
             prizeTitle: ""
@@ -228,7 +257,7 @@ export default function AdminDesk() {
       setSuccessModal({
         isOpen: true,
         name: fullName,
-        contact: contactInfo,
+        contact: targetContact,
         ticketNumber: chosenNumber
       });
 
@@ -305,11 +334,26 @@ export default function AdminDesk() {
 
       for (let j = 0; j < Math.min(mockHolders.length, availablePool.length); j++) {
         const chosenNum = availablePool[j];
+        const normalizedContact = cleanFormatContact(mockHolders[j].contact);
+
+        // Check if normalized contact is already registered (either in existing DB or newly allocated in this preseed batch)
+        let isDuplicate = false;
+        getFreshData.forEach((d) => {
+          if (cleanFormatContact(d.data().contact || "") === normalizedContact) {
+            isDuplicate = true;
+          }
+        });
+
+        if (isDuplicate) {
+          console.warn(`Skipping mock register of ${mockHolders[j].name} due to duplicate contact ${normalizedContact}`);
+          continue;
+        }
+
         try {
           await setDoc(doc(db, "tickets", chosenNum.toString()), {
             ticketNumber: chosenNum,
             name: mockHolders[j].name,
-            contact: mockHolders[j].contact,
+            contact: normalizedContact,
             assignedAt: new Date().toISOString(),
             drawn: false,
             prizeTitle: ""

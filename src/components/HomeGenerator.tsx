@@ -270,10 +270,13 @@ export default function HomeGenerator() {
     }
   };
 
-  // Cleant up WhatsApp input
+  // Clean up and normalize WhatsApp number to standard 11 digits (0 + last 10 digits)
   const cleanFormatContact = (raw: string) => {
-    // Strip empty spaces, brackets, hyphens
-    return raw.replace(/[\s\(\)\-\+]/g, "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length >= 10) {
+      return "0" + digits.slice(-10);
+    }
+    return raw.trim();
   };
 
   // Instant generation logic
@@ -282,6 +285,13 @@ export default function HomeGenerator() {
     setErrorText("");
 
     const targetContact = cleanFormatContact(whatsapp);
+    const hasDigits = /\d/.test(whatsapp);
+
+    if (hasDigits && (targetContact.length !== 11 || !targetContact.startsWith("0"))) {
+      setErrorText("Please enter a valid WhatsApp number (should normalize to 11 digits, e.g. 09019775509)!");
+      return;
+    }
+
     if (!targetContact) {
       setErrorText("A valid WhatsApp number is required to search or generate your ticket!");
       return;
@@ -289,32 +299,34 @@ export default function HomeGenerator() {
 
     setIsSubmitting(true);
     try {
-      // 1. Check if this WhatsApp number is already registered!
-      // This allows them to retrieve their card instantly with zero friction.
+      // 1. Fetch current pool and perform deep normalization match to find existing registrations
+      // and prevent anyone from generating duplicates
       const freshPoolRef = collection(db, "tickets");
-      const q = query(freshPoolRef, where("contact", "==", targetContact));
-      const querySnapshot = await getDocs(q);
+      const currentSnaps = await getDocs(freshPoolRef);
+      
+      let existingTicket: TicketData | null = null;
+      const occupied = new Set<number>();
 
-      if (!querySnapshot.empty) {
+      currentSnaps.forEach((docSnap) => {
+        const data = docSnap.data();
+        const num = data.ticketNumber;
+        if (typeof num === "number") {
+          occupied.add(num);
+        }
+
+        // Deep match comparison of normalized contacts
+        if (cleanFormatContact(data.contact || "") === targetContact) {
+          existingTicket = { id: docSnap.id, ...data } as TicketData;
+        }
+      });
+
+      if (existingTicket) {
         // Matches! Load this existing record
-        const docSnap = querySnapshot.docs[0];
-        setCreatedTicket({ id: docSnap.id, ...docSnap.data() } as TicketData);
+        setCreatedTicket(existingTicket);
         setIsFresh(false);
         setIsSubmitting(false);
         return;
       }
-
-      // 2. Not registered yet! We must proceed with a fresh secure allocation
-      // First, get all occupied seats outside the transaction to minimize blocking
-      const currentSnaps = await getDocs(freshPoolRef);
-      const occupied = new Set<number>();
-      
-      currentSnaps.forEach((docSnap) => {
-        const num = docSnap.data().ticketNumber;
-        if (typeof num === "number") {
-          occupied.add(num);
-        }
-      });
 
       // Calculate unoccupied pool 0-400
       const available: number[] = [];
