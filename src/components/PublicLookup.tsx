@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { Search, Trophy, Ticket, Wifi, ArrowLeft, User, MoreVertical, Trash2, AlertTriangle, Loader2 } from "lucide-react";
+import { Search, Trophy, Ticket, Wifi, ArrowLeft, User, MoreVertical, Trash2, AlertTriangle, Loader2, Download } from "lucide-react";
 import Topbar from "./Topbar";
 
 interface TicketData {
@@ -38,6 +38,230 @@ export default function PublicLookup() {
 
   // Showcase state for full-screen ticket layout
   const [selectedTicket, setSelectedTicket] = useState<TicketData | null>(null);
+
+  // Hidden canvas for details download
+  const detailCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (selectedTicket && detailCanvasRef.current) {
+      drawTicketDetail(selectedTicket);
+    }
+  }, [selectedTicket]);
+
+  const drawTicketDetail = (tk: TicketData) => {
+    const canvas = detailCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Dimensions
+    const width = 1000;
+    const height = 620;
+    canvas.width = width;
+    canvas.height = height;
+
+    // 1. Dark Velvet Background Gradient
+    const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, width);
+    bgGrad.addColorStop(0, "#12100E"); // Warm obsidian mocha core
+    bgGrad.addColorStop(1, "#000000"); // Infinite void
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Sophisticated Laser Mesh Background lines
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.04)"; // Neon Emerald tracer lines
+    ctx.lineWidth = 1;
+    for (let i = 0; i < width; i += 40) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i + 200, height);
+      ctx.stroke();
+    }
+    for (let j = 0; j < height; j += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, j);
+      ctx.lineTo(width, j + 100);
+      ctx.stroke();
+    }
+
+    // 3. Perfect Volcanic Slate #23211F Outer Bevel
+    ctx.strokeStyle = "#23211F";
+    ctx.lineWidth = 16;
+    ctx.strokeRect(8, 8, width - 16, height - 16);
+
+    // 4. Emerald Neon Glow Accent Border (Apple Style precision hairlines)
+    ctx.strokeStyle = "#10B981";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(16, 16, width - 32, height - 32);
+
+    // 5. Tech Corner Bracket highlights
+    ctx.fillStyle = "#10B981";
+    const bLen = 24;
+    const padding = 20;
+    // Top Left Bracket
+    ctx.fillRect(padding, padding, bLen, 4);
+    ctx.fillRect(padding, padding, 4, bLen);
+    // Top Right Bracket
+    ctx.fillRect(width - padding - bLen, padding, bLen, 4);
+    ctx.fillRect(width - padding - 4, padding, 4, bLen);
+    // Bottom Left Bracket
+    ctx.fillRect(padding, height - padding - 4, bLen, 4);
+    ctx.fillRect(padding, height - padding - bLen, 4, bLen);
+    // Bottom Right Bracket
+    ctx.fillRect(width - padding - bLen, height - padding - 4, bLen, 4);
+    ctx.fillRect(width - padding - 4, height - padding - bLen, 4, bLen);
+
+    // 6. Glowing Circular Decals (Abstract Tech Core)
+    ctx.fillStyle = "rgba(0, 102, 255, 0.08)"; // Deep Cowry Blue
+    ctx.beginPath();
+    ctx.arc(width - 150, height / 2 - 20, 180, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 7. Metallic Hologram Chip (Skeuomorphic gold/silver security chip)
+    ctx.fillStyle = "#1E1B19";
+    ctx.strokeStyle = "#23211F";
+    ctx.lineWidth = 2;
+    const chipX = 80;
+    const chipY = 80;
+    const chipW = 80;
+    const chipH = 60;
+    // Chip body
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(chipX, chipY, chipW, chipH, 8) : ctx.rect(chipX, chipY, chipW, chipH);
+    ctx.fill();
+    ctx.stroke();
+
+    // Chip Golden circuitry tracings
+    ctx.strokeStyle = "#10B981";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(chipX + 20, chipY);
+    ctx.lineTo(chipX + 20, chipY + chipH);
+    ctx.moveTo(chipX + 40, chipY);
+    ctx.lineTo(chipX + 40, chipY + chipH);
+    ctx.moveTo(chipX + 60, chipY);
+    ctx.lineTo(chipX + 60, chipY + chipH);
+    ctx.moveTo(chipX, chipY + 30);
+    ctx.lineTo(chipX + chipW, chipY + 30);
+    ctx.stroke();
+
+    // 8. Branding Header texts
+    // Title
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 26px Outfit, 'Plus Jakarta Sans', sans-serif";
+    ctx.fillText("COWRYWISE NOUN AMBASSADOR", 190, 105);
+
+    // Subtitle
+    ctx.fillStyle = "#10B981";
+    ctx.font = "bold 16px 'JetBrains Mono', monospace";
+    ctx.fillText("LAGOS LCC HANGOUT 2026 • OFFICIAL ATTENDEE BADGE", 190, 135);
+
+    // 9. Main Descriptive lines
+    ctx.fillStyle = "#9B9691";
+    ctx.font = "14px 'JetBrains Mono', monospace";
+    ctx.fillText("STATUS: VERIFIED SECURE ADMIT ONE", 80, 220);
+
+    // 10. Attendee Meta Information
+    // Name Label
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.fillText("HOLDER NAME", 80, 270);
+    // Name Value
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 38px Outfit, 'Plus Jakarta Sans', sans-serif";
+    const formatName = tk.name.toUpperCase();
+    ctx.fillText(formatName, 80, 315);
+
+    // Contact Label
+    ctx.fillStyle = "#9B9691";
+    ctx.font = "12px 'JetBrains Mono', monospace";
+    ctx.fillText("WHATSAPP HANDLE", 80, 380);
+    // Contact Value
+    ctx.fillStyle = "#10B981";
+    ctx.font = "bold 22px 'Space Grotesk', sans-serif";
+    ctx.fillText(tk.contact, 80, 415);
+
+    // 11. Digital Fingerprint Barcode / Decal
+    ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+    ctx.fillRect(80, 460, 450, 45);
+    ctx.fillStyle = "#E2E8F0";
+    ctx.font = "8px 'JetBrains Mono', monospace";
+    // Mock SHA256 hashes
+    const mockHash = `AUTH-SIG::SHA256-${tk.ticketNumber.toString().padStart(3, "0")}-LCC2026-FPRNT`;
+    ctx.fillText(mockHash, 90, 485);
+
+    // Draw simulated barcode lines on top
+    ctx.strokeStyle = "rgba(16, 185, 129, 0.4)";
+    ctx.lineWidth = 2;
+    for (let c = 80; c < 480; c += 10) {
+      ctx.beginPath();
+      ctx.moveTo(c, 460);
+      ctx.lineTo(c, 460 + 18);
+      ctx.stroke();
+    }
+
+    // 12. Giant Hologram Raffle Seat Number (Main visual Anchor)
+    // Box Framing
+    ctx.fillStyle = "#141211";
+    ctx.strokeStyle = "#23211F";
+    ctx.lineWidth = 3;
+    const boxX = 640;
+    const boxY = 210;
+    const boxW = 280;
+    const boxH = 280;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(boxX, boxY, boxW, boxH, 20) : ctx.rect(boxX, boxY, boxW, boxH);
+    ctx.fill();
+    ctx.stroke();
+
+    // Box Header Label
+    ctx.fillStyle = "#9B9691";
+    ctx.font = "semibold 12px 'JetBrains Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("LUCKY DRAW NUMBER", boxX + boxW / 2, boxY + 45);
+
+    // Seat Number
+    ctx.fillStyle = "#0066FF";
+    ctx.font = "bold 96px 'Space Grotesk', sans-serif";
+    const formattedSeat = `#${tk.ticketNumber.toString().padStart(3, "0")}`;
+    ctx.fillText(formattedSeat, boxX + boxW / 2, boxY + 165);
+
+    // Secondary Meta
+    ctx.fillStyle = "rgba(16, 185, 129, 0.8)";
+    ctx.font = "bold 11px 'JetBrains Mono', monospace";
+    ctx.fillText("COWRYWISE AMBASSADOR POOL", boxX + boxW / 2, boxY + 225);
+
+    ctx.fillStyle = "#9B9691";
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    ctx.fillText("GUARANTEED SPHERE ENTRY", boxX + boxW / 2, boxY + 250);
+
+    // Reset text align
+    ctx.textAlign = "left";
+
+    // 13. Generated Timestamp
+    ctx.fillStyle = "#23211F";
+    ctx.fillRect(20, height - 45, width - 40, 1);
+    ctx.fillStyle = "#9B9691";
+    ctx.font = "10px 'JetBrains Mono', monospace";
+    const dateStr = tk.assignedAt ? new Date(tk.assignedAt).toUTCString().toUpperCase() : "ACTIVE STATUS";
+    ctx.fillText(`TIMESTAMP: ${dateStr}`, 40, height - 25);
+    ctx.textAlign = "right";
+    ctx.fillText("VERIFICATION ENGINE HOSTED SECURELY ON CLOUD RUN", width - 40, height - 25);
+    ctx.textAlign = "left";
+  };
+
+  const handleDownloadDetailImage = () => {
+    if (!selectedTicket || !detailCanvasRef.current) return;
+    try {
+      const dataUrl = detailCanvasRef.current.toDataURL("image/png");
+      const link = document.createElement("a");
+      const normalizedName = selectedTicket.name.toLowerCase().replace(/[^a-z0-9]/g, "_");
+      link.download = `cowrywise_rffle_ticket_${normalizedName}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (e) {
+      console.error("Downloader failed", e);
+      alert("A browser boundary blocked direct trigger download. Please long press/right click the card to save!");
+    }
+  };
 
   // Fetch administrator lookup status
   useEffect(() => {
@@ -437,13 +661,24 @@ export default function PublicLookup() {
 
             </div>
 
-            {/* Cancel/Dismiss tactile control */}
-            <div className="pt-2">
+            {/* Hidden offscreen canvas for rendering high-res ticket download */}
+            <canvas ref={detailCanvasRef} className="hidden" style={{ display: "none" }} />
+
+            {/* Cancel/Dismiss tactile control & Download ticket options */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3 w-full">
+              <button
+                onClick={handleDownloadDetailImage}
+                className="w-full sm:w-auto cursor-pointer bg-[#10B981] hover:bg-[#0EA271] text-[#000000] font-heading font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl border-2 border-[#10B981] shadow-tactile-md active:translate-y-0.5 transition-all flex items-center justify-center gap-2 font-black"
+              >
+                <Download size={13} strokeWidth={3} />
+                DOWNLOAD TICKET BADGE
+              </button>
+
               <button
                 onClick={() => setSelectedTicket(null)}
-                className="cursor-pointer border-2 border-[#23211F] bg-[#0B0A09] hover:bg-[#131110] text-[#9B9691] hover:text-white font-heading font-black text-xs uppercase tracking-widest px-11 py-4 rounded-2xl shadow-tactile-lg transition-all active:translate-y-0.5 flex items-center gap-2"
+                className="w-full sm:w-auto cursor-pointer border-2 border-[#23211F] bg-[#0B0A09] hover:bg-[#131110] text-[#9B9691] hover:text-white font-heading font-black text-xs uppercase tracking-widest px-8 py-4 rounded-xl shadow-tactile-md transition-all active:translate-y-0.5 flex items-center justify-center gap-2"
               >
-                <ArrowLeft size={13} /> Cancel & return to lists
+                <ArrowLeft size={13} /> RETURN TO LIST
               </button>
             </div>
 

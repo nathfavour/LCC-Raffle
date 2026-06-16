@@ -23,6 +23,31 @@ export default function HomeGenerator() {
   const [errorText, setErrorText] = useState("");
   const [isFresh, setIsFresh] = useState(false);
 
+  // Returning user badge saved in browser storage
+  const [localStorageTicket, setLocalStorageTicket] = useState<TicketData | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("saved_raffle_ticket");
+      if (stored) {
+        setLocalStorageTicket(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.warn("Could not retrieve local storage ticket", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (createdTicket) {
+      try {
+        localStorage.setItem("saved_raffle_ticket", JSON.stringify(createdTicket));
+        setLocalStorageTicket(createdTicket);
+      } catch (e) {
+        console.warn("Could not save ticket to local storage", e);
+      }
+    }
+  }, [createdTicket]);
+
   // Real-time listener for ALL tickets to check duplicates instantly on typing
   const [allTickets, setAllTickets] = useState<TicketData[]>([]);
 
@@ -454,6 +479,55 @@ export default function HomeGenerator() {
       </div>
 
       {/* 3. Screen States Toggle */}
+      {!createdTicket && localStorageTicket && (
+        <div className="max-w-xl mx-auto bg-[#141211] border-2 border-[#10B981] rounded-3xl p-6 shadow-[0_0_30px_rgba(16,185,129,0.08)] relative overflow-hidden text-left animate-fade-in space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-mono tracking-widest text-[#10B981] uppercase font-black flex items-center gap-1.5 matches-glow">
+              <Sparkles size={11} className="text-[#10B981]" /> RETURNING USER BADGE DETECTED
+            </span>
+            <button
+              onClick={() => {
+                try {
+                  localStorage.removeItem("saved_raffle_ticket");
+                  setLocalStorageTicket(null);
+                } catch (e) {}
+              }}
+              className="text-[9px] font-mono text-[#9B9691] hover:text-white uppercase transition-colors cursor-pointer"
+              title="Forget this badge locally"
+            >
+              [FORGET SYSTEM SEAT]
+            </button>
+          </div>
+          <div>
+            <h4 className="text-sm font-heading font-black text-white uppercase tracking-tight">
+              Akinyele / Participant: {localStorageTicket.name}!
+            </h4>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+              We detected that you already generated your official Cowrywise ticket badge (<b>#{localStorageTicket.ticketNumber.toString().padStart(3, "0")}</b>) on our registry database. Click below to view and download it instantly.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <button
+              onClick={() => {
+                setCreatedTicket(localStorageTicket);
+                setIsFresh(false);
+              }}
+              className="flex-1 cursor-pointer bg-[#10B981] hover:bg-[#0ea271] text-black font-heading font-black text-[11px] uppercase tracking-widest py-3 rounded-xl border-2 border-[#10B981] shadow-tactile-sm transition-all text-center"
+            >
+              VIEW MY REGISTERED TICKET
+            </button>
+            <button
+              onClick={() => {
+                setLocalStorageTicket(null);
+              }}
+              className="px-4 cursor-pointer bg-[#0B0A09] hover:bg-[#1C1A18] text-[#9B9691] hover:text-white font-heading font-black text-[11px] uppercase tracking-widest py-3 rounded-xl border-2 border-[#23211F] transition-all"
+            >
+              DISMISS HINT
+            </button>
+          </div>
+        </div>
+      )}
+
       {!createdTicket ? (
         // --- ADMISSION FORM SCREEN ---
         <div className="max-w-xl mx-auto bg-[#141211] border-2 border-[#23211F] p-8 md:p-10 rounded-3xl shadow-tactile-lg space-y-6">
